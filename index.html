@@ -458,8 +458,9 @@ const SB_URL='https://mqdhavyaeujufhlqdlfg.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xZGhhdnlhZXVqdWZobHFkbGZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NDg0OTUsImV4cCI6MjA5NTUyNDQ5NX0.bmlsVIXzQ1H-R4CEVZJzg_8TXygBsSQ57GOteBKqLHE';
 const{createClient}=supabase;
 const sb=createClient(SB_URL,SB_KEY,{
-  auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'obras-icasas-session'}
+  auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}
 });
+window.sb=sb;
 
 let ME=null,PERFIL=null,OBRA_ID=null,SEARCH='';
 let ALERTAS_DATA=[];
@@ -493,16 +494,27 @@ async function iniciarApp(session){
   loadNotificacoes();
 }
 
-// Verifica sessão salva ao carregar — mantém login ativo
+// Ao carregar — recupera sessão salva no localStorage
 (async()=>{
-  const{data:{session}}=await sb.auth.getSession();
-  if(session) await iniciarApp(session);
+  try{
+    const{data:{session},error}=await sb.auth.getSession();
+    if(error)console.error('getSession:',error);
+    if(session){
+      console.log('Sessão encontrada:',session.user.email);
+      await iniciarApp(session);
+    }
+  }catch(e){
+    console.error('getSession exception:',e);
+  }
 })();
 
 sb.auth.onAuthStateChange(async(event,session)=>{
-  if(event==='SIGNED_IN'&&session){
-    await iniciarApp(session);
-  }else if(event==='SIGNED_OUT'){
+  console.log('Auth event:',event,session?.user?.email);
+  if(event==='TOKEN_REFRESHED'&&session&&ME){
+    // só atualiza tokens, não reinicia o app
+    return;
+  }
+  if(event==='SIGNED_OUT'){
     ME=null;PERFIL=null;
     document.getElementById('login-screen').style.display='flex';
     document.getElementById('app').style.display='none';
@@ -521,16 +533,19 @@ async function doLogin(){
   if(!email||!senha){err.textContent='Preencha e-mail e senha.';err.style.display='block';return;}
   btn.textContent='Entrando...';btn.disabled=true;
   try{
-    const{error}=await withTimeout(sb.auth.signInWithPassword({email,password:senha}),12000);
+    const{data,error}=await withTimeout(sb.auth.signInWithPassword({email,password:senha}),12000);
     if(error){
       console.error('Auth error:',error);
-      const msgs={'Invalid login credentials':'E-mail ou senha incorretos.','Email not confirmed':'Confirme o e-mail antes de entrar, ou desative confirmações no Supabase.'};
+      const msgs={'Invalid login credentials':'E-mail ou senha incorretos.','Email not confirmed':'Confirme o e-mail antes de entrar.'};
       err.textContent=msgs[error.message]||error.message;
       err.style.display='block';
+    } else if(data?.session){
+      // chama direto sem esperar onAuthStateChange
+      await iniciarApp(data.session);
     }
   }catch(e){
     console.error('Login exception:',e);
-    err.textContent=e.message==='timeout'?'Projeto Supabase sem resposta — verifique se está ativo no painel.':'Erro de conexão. Tente novamente.';
+    err.textContent=e.message==='timeout'?'Projeto Supabase sem resposta — verifique se está ativo.':'Erro de conexão. Tente novamente.';
     err.style.display='block';
   }finally{
     btn.textContent='Entrar';btn.disabled=false;
