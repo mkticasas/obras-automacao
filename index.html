@@ -211,6 +211,17 @@ tr:hover td{background:var(--bg3)}
 #toast.ok{border-color:var(--green);color:var(--green)}
 #toast.err{border-color:var(--red);color:var(--red)}
 .loading-txt{color:var(--text2);font-size:13px;padding:20px;text-align:center}
+
+/* ─── DRAG & DROP ─── */
+.card[draggable=true]{cursor:grab}
+.card[draggable=true]:active{cursor:grabbing}
+.card.dragging{opacity:.4;transform:rotate(1deg);border-style:dashed}
+.cards-wrap.drag-over{background:rgba(76,168,216,.06);border-radius:8px;outline:2px dashed var(--blue);outline-offset:-4px}
+
+/* ─── EDITAR CARD ─── */
+.btn-edit{background:var(--bg4);color:var(--text2);border:1px solid var(--border);border-radius:var(--radius);padding:7px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .2s}
+.btn-edit:hover{border-color:var(--border2);color:var(--text)}
+.btn-edit svg{width:13px;height:13px}
 </style>
 </head>
 <body>
@@ -398,10 +409,44 @@ tr:hover td{background:var(--bg3)}
         <h3 id="d-cliente">—</h3>
         <p id="d-end">—</p>
       </div>
-      <button class="m-x" onclick="closeOv('ov-detalhe')">×</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn-edit" id="btn-abrir-edicao">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Editar
+        </button>
+        <button class="m-x" onclick="closeOv('ov-detalhe')">×</button>
+      </div>
     </div>
     <div class="modal-body" id="d-body">
       <div class="loading-txt">Carregando checklist...</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR OBRA -->
+<div class="overlay" id="ov-editar">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>Editar Obra</h3></div>
+      <button class="m-x" onclick="closeOv('ov-editar')">×</button>
+    </div>
+    <div class="modal-body">
+      <div><label class="flabel">Cliente / nome da obra *</label><input class="finput" id="e-cliente" placeholder="Ex: Rodobens Auditório"></div>
+      <div><label class="flabel">Endereço</label><input class="finput" id="e-end" placeholder="Rua, número, bairro"></div>
+      <div class="frow">
+        <div><label class="flabel">WhatsApp do cliente</label><input class="finput" id="e-wp" placeholder="(17) 99999-9999"></div>
+        <div><label class="flabel">Responsável comercial</label><input class="finput" id="e-com" placeholder="Nome do vendedor"></div>
+      </div>
+      <div class="frow">
+        <div><label class="flabel">Frequência de visita</label>
+          <select class="fselect" id="e-freq"><option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option><option value="mensal">Mensal</option></select>
+        </div>
+        <div><label class="flabel">Previsão fechamento do gesso</label><input class="finput" type="date" id="e-gesso"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeOv('ov-editar')">Cancelar</button>
+      <button class="btn-save" id="btn-salvar-edicao">Salvar Alterações</button>
     </div>
   </div>
 </div>
@@ -608,6 +653,41 @@ document.addEventListener('click',e=>{
     document.getElementById('bell-panel').classList.remove('open');
 });
 
+// ─── DRAG & DROP ───
+let dragObraId=null;
+
+function setupDrag(card,obraId){
+  card.draggable=true;
+  card.addEventListener('dragstart',e=>{
+    dragObraId=obraId;
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed='move';
+  });
+  card.addEventListener('dragend',()=>{
+    card.classList.remove('dragging');
+    document.querySelectorAll('.cards-wrap').forEach(w=>w.classList.remove('drag-over'));
+  });
+}
+
+function setupDropZone(wrap,colKey){
+  wrap.addEventListener('dragover',e=>{
+    e.preventDefault();
+    e.dataTransfer.dropEffect='move';
+    wrap.classList.add('drag-over');
+  });
+  wrap.addEventListener('dragleave',e=>{
+    if(!wrap.contains(e.relatedTarget))wrap.classList.remove('drag-over');
+  });
+  wrap.addEventListener('drop',async e=>{
+    e.preventDefault();
+    wrap.classList.remove('drag-over');
+    if(!dragObraId)return;
+    await sb.from('acomp_obras').update({status_coluna:colKey}).eq('id',dragObraId);
+    dragObraId=null;
+    renderBoard();
+  });
+}
+
 // ─── BOARD ───
 async function renderBoard(){
   const board=document.getElementById('board');
@@ -641,6 +721,7 @@ async function renderBoard(){
     `;
     board.appendChild(colEl);
     const wrap=colEl.querySelector('.cards-wrap');
+    setupDropZone(wrap,col.key);
 
     if(!cards.length){
       wrap.innerHTML=`<div class="card-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg><span>Nenhuma obra</span></div>`;
@@ -675,14 +756,48 @@ async function renderBoard(){
         </div>
       `;
       card.addEventListener('click',()=>openDetalhe(obra));
+      setupDrag(card,obra.id);
       wrap.appendChild(card);
     });
   });
 }
 
+// ─── EDITAR OBRA ───
+let OBRA_ATUAL=null;
+
+document.getElementById('btn-abrir-edicao').addEventListener('click',()=>{
+  if(!OBRA_ATUAL)return;
+  document.getElementById('e-cliente').value=OBRA_ATUAL.cliente||'';
+  document.getElementById('e-end').value=OBRA_ATUAL.endereco||'';
+  document.getElementById('e-wp').value=OBRA_ATUAL.contato_whatsapp||'';
+  document.getElementById('e-com').value=OBRA_ATUAL.responsavel_comercial||'';
+  document.getElementById('e-freq').value=OBRA_ATUAL.frequencia_visita||'semanal';
+  document.getElementById('e-gesso').value=OBRA_ATUAL.data_prevista_gesso||'';
+  openOv('ov-editar');
+});
+
+document.getElementById('btn-salvar-edicao').addEventListener('click',async()=>{
+  const cliente=document.getElementById('e-cliente').value.trim();
+  if(!cliente){toast('Informe o nome da obra','err');return;}
+  const{error}=await sb.from('acomp_obras').update({
+    cliente,
+    endereco:document.getElementById('e-end').value.trim()||null,
+    contato_whatsapp:document.getElementById('e-wp').value.trim()||null,
+    responsavel_comercial:document.getElementById('e-com').value.trim()||null,
+    frequencia_visita:document.getElementById('e-freq').value,
+    data_prevista_gesso:document.getElementById('e-gesso').value||null,
+  }).eq('id',OBRA_ID);
+  if(error){toast('Erro ao salvar','err');return;}
+  closeOv('ov-editar');
+  closeOv('ov-detalhe');
+  toast('Obra atualizada!','ok');
+  renderBoard();
+});
+
 // ─── DETALHE ───
 async function openDetalhe(obra){
   OBRA_ID=obra.id;
+  OBRA_ATUAL=obra;
   document.getElementById('d-cliente').textContent=obra.cliente;
   document.getElementById('d-end').textContent=obra.endereco||'—';
   const body=document.getElementById('d-body');
@@ -733,6 +848,7 @@ async function openDetalhe(obra){
     } else {
       items.forEach(item=>{
         const tmpl=item.acomp_checklist_template;
+
         const row=document.createElement('div');
         row.className='ck-row';
         const cb=document.createElement('input');
