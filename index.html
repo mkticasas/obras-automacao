@@ -412,7 +412,9 @@ tr:hover td{background:var(--bg3)}
 const SB_URL='https://mqdhavyaeujufhlqdlfg.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xZGhhdnlhZXVqdWZobHFkbGZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NDg0OTUsImV4cCI6MjA5NTUyNDQ5NX0.bmlsVIXzQ1H-R4CEVZJzg_8TXygBsSQ57GOteBKqLHE';
 const{createClient}=supabase;
-const sb=createClient(SB_URL,SB_KEY);
+const sb=createClient(SB_URL,SB_KEY,{
+  auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'obras-icasas-session'}
+});
 
 let ME=null,PERFIL=null,OBRA_ID=null,SEARCH='';
 let ALERTAS_DATA=[];
@@ -430,8 +432,41 @@ const COLS=[
 ];
 
 // ─── AUTH ───
+function withTimeout(promise,ms){
+  return Promise.race([
+    promise,
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))
+  ]);
+}
+
+async function iniciarApp(session){
+  ME=session.user;
+  try{await loadMe();}catch(e){console.error('loadMe:',e);}
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  renderBoard();
+  loadNotificacoes();
+}
+
+// Verifica sessão salva ao carregar — mantém login ativo
+(async()=>{
+  const{data:{session}}=await sb.auth.getSession();
+  if(session) await iniciarApp(session);
+})();
+
+sb.auth.onAuthStateChange(async(event,session)=>{
+  if(event==='SIGNED_IN'&&session){
+    await iniciarApp(session);
+  }else if(event==='SIGNED_OUT'){
+    ME=null;PERFIL=null;
+    document.getElementById('login-screen').style.display='flex';
+    document.getElementById('app').style.display='none';
+  }
+});
+
 document.getElementById('btn-login').addEventListener('click',doLogin);
-document.getElementById('l-senha').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+document.getElementById('l-senha').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+
 async function doLogin(){
   const btn=document.getElementById('btn-login');
   const email=document.getElementById('l-email').value.trim();
@@ -441,36 +476,25 @@ async function doLogin(){
   if(!email||!senha){err.textContent='Preencha e-mail e senha.';err.style.display='block';return;}
   btn.textContent='Entrando...';btn.disabled=true;
   try{
-    const{error}=await sb.auth.signInWithPassword({email,password:senha});
+    const{error}=await withTimeout(sb.auth.signInWithPassword({email,password:senha}),12000);
     if(error){
-      console.error('Login error:',error);
-      err.textContent=error.message||'E-mail ou senha incorretos.';
+      console.error('Auth error:',error);
+      const msgs={'Invalid login credentials':'E-mail ou senha incorretos.','Email not confirmed':'Confirme o e-mail antes de entrar, ou desative confirmações no Supabase.'};
+      err.textContent=msgs[error.message]||error.message;
       err.style.display='block';
     }
   }catch(e){
     console.error('Login exception:',e);
-    err.textContent='Erro de conexão. Tente novamente.';
+    err.textContent=e.message==='timeout'?'Projeto Supabase sem resposta — verifique se está ativo no painel.':'Erro de conexão. Tente novamente.';
     err.style.display='block';
   }finally{
     btn.textContent='Entrar';btn.disabled=false;
   }
 }
-sb.auth.onAuthStateChange(async(_,session)=>{
-  if(session){
-    ME=session.user;
-    try{await loadMe();}catch(e){console.error('loadMe error:',e);}
-    document.getElementById('login-screen').style.display='none';
-    document.getElementById('app').style.display='flex';
-    renderBoard();
-    loadNotificacoes();
-  }else{
-    document.getElementById('login-screen').style.display='flex';
-    document.getElementById('app').style.display='none';
-  }
-});
+
 async function loadMe(){
   const{data,error}=await sb.from('profiles').select('*').eq('id',ME.id).single();
-  if(error)console.error('profiles error:',error);
+  if(error)console.error('profiles:',error);
   if(!data)return;
   PERFIL=data.perfil;
   const ini=data.nome.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase();
@@ -483,7 +507,10 @@ async function loadMe(){
     document.getElementById('btn-novo-usuario').style.display='flex';
   }
 }
-document.getElementById('btn-sair').addEventListener('click',()=>sb.auth.signOut());
+
+document.getElementById('btn-sair').addEventListener('click',async()=>{
+  await sb.auth.signOut();
+});
 
 // ─── NAV ───
 document.querySelectorAll('.nav-item[data-view]').forEach(item=>{
