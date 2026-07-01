@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>iCasas — Acompanhamento de Obras</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2.39.3/dist/umd/supabase.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -531,21 +531,33 @@ async function doLogin(){
   const err=document.getElementById('login-err');
   err.style.display='none';
   if(!email||!senha){err.textContent='Preencha e-mail e senha.';err.style.display='block';return;}
-  btn.textContent='Entrando...';btn.disabled=true;
+  btn.textContent='Verificando...';btn.disabled=true;
+
+  // testa conectividade com o Supabase antes de tentar login
   try{
-    const{data,error}=await withTimeout(sb.auth.signInWithPassword({email,password:senha}),12000);
+    const ping=await fetch('https://mqdhavyaeujufhlqdlfg.supabase.co/auth/v1/health',{method:'GET'});
+    console.log('Ping status:',ping.status);
+  }catch(pingErr){
+    err.textContent='Sem conexão com o servidor. Verifique sua internet.';
+    err.style.display='block';
+    btn.textContent='Entrar';btn.disabled=false;
+    return;
+  }
+
+  btn.textContent='Entrando...';
+  try{
+    const{data,error}=await withTimeout(sb.auth.signInWithPassword({email,password:senha}),20000);
     if(error){
       console.error('Auth error:',error);
       const msgs={'Invalid login credentials':'E-mail ou senha incorretos.','Email not confirmed':'Confirme o e-mail antes de entrar.'};
       err.textContent=msgs[error.message]||error.message;
       err.style.display='block';
     } else if(data?.session){
-      // chama direto sem esperar onAuthStateChange
       await iniciarApp(data.session);
     }
   }catch(e){
     console.error('Login exception:',e);
-    err.textContent=e.message==='timeout'?'Projeto Supabase sem resposta — verifique se está ativo.':'Erro de conexão. Tente novamente.';
+    err.textContent=e.message==='timeout'?'Servidor sem resposta após 20s. Tente novamente.':'Erro: '+e.message;
     err.style.display='block';
   }finally{
     btn.textContent='Entrar';btn.disabled=false;
@@ -703,6 +715,20 @@ function setupDropZone(wrap,colKey){
   });
 }
 
+// Atualiza barra de progresso do card no board sem recarregar tudo
+async function atualizarBarraCard(obraId){
+  const{data}=await sb.from('acomp_progresso_geral_obra').select('pct_geral').eq('obra_id',obraId).single();
+  const pct=parseInt(data?.pct_geral||0);
+  const barColor=pct===100?'var(--green)':pct>=50?'var(--blue)':'var(--orange)';
+  // localiza o card pelo obra_id armazenado no dataset
+  const card=document.querySelector(`.card[data-id="${obraId}"]`);
+  if(!card)return;
+  const fill=card.querySelector('.card-bar-fill');
+  const label=card.querySelector('.card-bar-labels span:last-child');
+  if(fill){fill.style.width=pct+'%';fill.style.background=barColor;}
+  if(label)label.textContent=pct+'%';
+}
+
 // ─── BOARD ───
 async function renderBoard(){
   const board=document.getElementById('board');
@@ -751,6 +777,7 @@ async function renderBoard(){
 
       const card=document.createElement('div');
       card.className='card'+(temAlerta?' tem-alerta':'');
+      card.dataset.id=obra.id;
       card.innerHTML=`
         <div class="card-strip" style="background:${strip}"></div>
         <div class="card-body">
@@ -879,11 +906,16 @@ async function openDetalhe(obra){
           await sb.from('acomp_obra_checklist')
             .update({concluido:v,concluido_em:v?new Date().toISOString():null})
             .eq('id',item.id);
+
+          // atualiza barra da etapa no modal
           const newDone=list.querySelectorAll('input:checked').length;
           const newPct=Math.round((newDone/total)*100);
           document.getElementById('eb-'+etapa.id).style.width=newPct+'%';
           document.getElementById('eb-'+etapa.id).className='etapa-bar-fill'+(newPct===100?' ok':'');
           document.getElementById('ep-'+etapa.id).textContent=`${newDone}/${total} — ${newPct}%`;
+
+          // atualiza barra geral do card no board em tempo real
+          atualizarBarraCard(OBRA_ID);
           toast(v?'✓ Marcado':'Desmarcado','ok');
         });
         list.appendChild(row);
