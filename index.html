@@ -433,19 +433,34 @@ const COLS=[
 document.getElementById('btn-login').addEventListener('click',doLogin);
 document.getElementById('l-senha').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 async function doLogin(){
+  const btn=document.getElementById('btn-login');
   const email=document.getElementById('l-email').value.trim();
   const senha=document.getElementById('l-senha').value;
   const err=document.getElementById('login-err');
   err.style.display='none';
-  const{error}=await sb.auth.signInWithPassword({email,password:senha});
-  if(error)err.style.display='block';
+  if(!email||!senha){err.textContent='Preencha e-mail e senha.';err.style.display='block';return;}
+  btn.textContent='Entrando...';btn.disabled=true;
+  try{
+    const{error}=await sb.auth.signInWithPassword({email,password:senha});
+    if(error){
+      console.error('Login error:',error);
+      err.textContent=error.message||'E-mail ou senha incorretos.';
+      err.style.display='block';
+    }
+  }catch(e){
+    console.error('Login exception:',e);
+    err.textContent='Erro de conexão. Tente novamente.';
+    err.style.display='block';
+  }finally{
+    btn.textContent='Entrar';btn.disabled=false;
+  }
 }
 sb.auth.onAuthStateChange(async(_,session)=>{
   if(session){
     ME=session.user;
-    await loadMe();
+    try{await loadMe();}catch(e){console.error('loadMe error:',e);}
     document.getElementById('login-screen').style.display='none';
-    document.getElementById('app').style.display='block';
+    document.getElementById('app').style.display='flex';
     renderBoard();
     loadNotificacoes();
   }else{
@@ -454,7 +469,8 @@ sb.auth.onAuthStateChange(async(_,session)=>{
   }
 });
 async function loadMe(){
-  const{data}=await sb.from('profiles').select('*').eq('id',ME.id).single();
+  const{data,error}=await sb.from('profiles').select('*').eq('id',ME.id).single();
+  if(error)console.error('profiles error:',error);
   if(!data)return;
   PERFIL=data.perfil;
   const ini=data.nome.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase();
