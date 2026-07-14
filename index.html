@@ -460,6 +460,7 @@ const COLS=[
 const{createClient}=supabase;
 const sb=createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
 window.sb=sb;
+window.sb=sb;
 
 let ME=null,PERFIL=null,ME_COR='#4ca8d8',OBRA_ID=null,OBRA_ATUAL=null,SEARCH='',ALERTAS_DATA=[];
 let dragObraId=null;
@@ -490,7 +491,9 @@ async function iniciarApp(session){
   try{await loadMe();}catch(e){console.error('loadMe:',e);}
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
-  renderBoard();loadNotificacoes();
+  document.querySelector('.main').style.display='flex';
+  renderBoard();
+  loadNotificacoes();
 }
 
 (async()=>{
@@ -521,10 +524,19 @@ async function doLogin(){
     await fetch(SB_URL+'/auth/v1/health');
     btn.textContent='Entrando...';
     const{data,error}=await withTimeout(sb.auth.signInWithPassword({email,password:senha}),20000);
-    if(error){const msgs={'Invalid login credentials':'E-mail ou senha incorretos.'};err.textContent=msgs[error.message]||error.message;err.style.display='block';}
-    else if(data?.session)await iniciarApp(data.session);
-  }catch(e){err.textContent=e.message==='timeout'?'Servidor sem resposta.':'Erro: '+e.message;err.style.display='block';}
-  finally{btn.textContent='Entrar';btn.disabled=false;}
+    if(error){
+      const msgs={'Invalid login credentials':'E-mail ou senha incorretos.'};
+      err.textContent=msgs[error.message]||error.message;
+      err.style.display='block';
+    } else if(data?.session){
+      await iniciarApp(data.session);
+    }
+  }catch(e){
+    err.textContent=e.message==='timeout'?'Servidor sem resposta.':'Erro: '+e.message;
+    err.style.display='block';
+  }finally{
+    btn.textContent='Entrar';btn.disabled=false;
+  }
 }
 
 async function loadMe(){
