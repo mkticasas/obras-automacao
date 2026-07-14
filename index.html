@@ -457,11 +457,8 @@ tr:hover td{background:var(--bg3)}
         <div><label class="flabel">Perfil</label>
           <select class="fselect" id="eu-perfil"><option value="tecnico">Técnico</option><option value="gestor">Gestor</option></select>
         </div>
-        <div style="display:flex;flex-direction:column;justify-content:flex-end">
-          <label class="flabel">Senha</label>
-          <button id="btn-reset-senha" style="background:var(--bg3);border:1px solid var(--border);color:var(--blue);border-radius:var(--radius);padding:9px 11px;font-size:12px;cursor:pointer;text-align:left;transition:border-color .2s">
-            📧 Enviar email de reset
-          </button>
+        <div><label class="flabel">Nova senha <span style="color:var(--text3)">(opcional)</span></label>
+          <input class="finput" type="password" id="eu-senha" placeholder="Deixe vazio pra manter">
         </div>
       </div>
       <div>
@@ -1086,33 +1083,25 @@ window.abrirEditarUsuario=function(u){
   document.getElementById('eu-email-hidden').value=u.email||'';
   document.getElementById('eu-nome').value=u.nome;
   document.getElementById('eu-perfil').value=u.perfil;
+  document.getElementById('eu-senha').value='';
   document.getElementById('eu-cor').value=u.cor||'#4ca8d8';
   renderColorPicker('eu-color-picker','eu-cor',u.cor||'#4ca8d8');
-  const btn=document.getElementById('btn-reset-senha');
-  btn.textContent='📧 Enviar email de reset para '+( u.email||'este usuário');
   openOv('ov-editar-usuario');
 };
-
-document.getElementById('btn-reset-senha').addEventListener('click',async()=>{
-  const email=document.getElementById('eu-email-hidden').value;
-  if(!email){toast('E-mail não encontrado','err');return;}
-  const btn=document.getElementById('btn-reset-senha');
-  btn.textContent='Enviando...';btn.disabled=true;
-  const{error}=await sb.auth.resetPasswordForEmail(email,{
-    redirectTo: window.location.href
-  });
-  btn.disabled=false;
-  if(error){toast('Erro: '+error.message,'err');btn.textContent='📧 Enviar email de reset';}
-  else{toast('Email de reset enviado para '+email,'ok');btn.textContent='✓ Email enviado!';}
-});
 
 document.getElementById('btn-salvar-editar-usuario').addEventListener('click',async()=>{
   const id=document.getElementById('eu-id').value;
   const nome=document.getElementById('eu-nome').value.trim();
   const perfil=document.getElementById('eu-perfil').value;
   const cor=document.getElementById('eu-cor').value||'#4ca8d8';
+  const senha=document.getElementById('eu-senha').value;
   if(!nome){toast('Informe o nome','err');return;}
+  if(senha&&senha.length<6){toast('Senha mínimo 6 caracteres','err');return;}
   await sb.from('profiles').update({nome,perfil,cor}).eq('id',id);
+  if(senha){
+    const{error}=await sb.rpc('admin_update_user_password',{user_id:id,new_password:senha});
+    if(error){toast('Perfil salvo, mas erro na senha: '+error.message,'err');return;}
+  }
   toast('Usuário atualizado!','ok');
   closeOv('ov-editar-usuario');
   loadUsuarios();
