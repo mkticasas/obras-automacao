@@ -451,12 +451,18 @@ tr:hover td{background:var(--bg3)}
     <div class="modal-head"><div><h3>Editar Usuário</h3></div><button class="m-x" onclick="closeOv('ov-editar-usuario')">×</button></div>
     <div class="modal-body">
       <input type="hidden" id="eu-id">
+      <input type="hidden" id="eu-email-hidden">
       <div><label class="flabel">Nome completo *</label><input class="finput" id="eu-nome"></div>
       <div class="frow">
         <div><label class="flabel">Perfil</label>
           <select class="fselect" id="eu-perfil"><option value="tecnico">Técnico</option><option value="gestor">Gestor</option></select>
         </div>
-        <div><label class="flabel">Nova senha <span style="color:var(--text3)">(opcional)</span></label><input class="finput" type="password" id="eu-senha" placeholder="Deixe vazio pra manter"></div>
+        <div style="display:flex;flex-direction:column;justify-content:flex-end">
+          <label class="flabel">Senha</label>
+          <button id="btn-reset-senha" style="background:var(--bg3);border:1px solid var(--border);color:var(--blue);border-radius:var(--radius);padding:9px 11px;font-size:12px;cursor:pointer;text-align:left;transition:border-color .2s">
+            📧 Enviar email de reset
+          </button>
+        </div>
       </div>
       <div>
         <label class="flabel">Cor do perfil</label>
@@ -1074,31 +1080,37 @@ async function loadUsuarios(){
 
 window.abrirEditarUsuario=function(u){
   document.getElementById('eu-id').value=u.id;
+  document.getElementById('eu-email-hidden').value=u.email||'';
   document.getElementById('eu-nome').value=u.nome;
   document.getElementById('eu-perfil').value=u.perfil;
-  document.getElementById('eu-senha').value='';
   document.getElementById('eu-cor').value=u.cor||'#4ca8d8';
   renderColorPicker('eu-color-picker','eu-cor',u.cor||'#4ca8d8');
+  const btn=document.getElementById('btn-reset-senha');
+  btn.textContent='📧 Enviar email de reset para '+( u.email||'este usuário');
   openOv('ov-editar-usuario');
 };
+
+document.getElementById('btn-reset-senha').addEventListener('click',async()=>{
+  const email=document.getElementById('eu-email-hidden').value;
+  if(!email){toast('E-mail não encontrado','err');return;}
+  const btn=document.getElementById('btn-reset-senha');
+  btn.textContent='Enviando...';btn.disabled=true;
+  const{error}=await sb.auth.resetPasswordForEmail(email,{
+    redirectTo: window.location.href
+  });
+  btn.disabled=false;
+  if(error){toast('Erro: '+error.message,'err');btn.textContent='📧 Enviar email de reset';}
+  else{toast('Email de reset enviado para '+email,'ok');btn.textContent='✓ Email enviado!';}
+});
 
 document.getElementById('btn-salvar-editar-usuario').addEventListener('click',async()=>{
   const id=document.getElementById('eu-id').value;
   const nome=document.getElementById('eu-nome').value.trim();
   const perfil=document.getElementById('eu-perfil').value;
   const cor=document.getElementById('eu-cor').value||'#4ca8d8';
-  const senha=document.getElementById('eu-senha').value;
   if(!nome){toast('Informe o nome','err');return;}
   await sb.from('profiles').update({nome,perfil,cor}).eq('id',id);
-  if(senha){
-    if(senha.length<6){toast('Senha mínimo 6 caracteres','err');return;}
-    // atualiza senha via SQL (só funciona com service role; aqui usamos admin workaround)
-    const{error}=await sb.auth.admin?.updateUserById(id,{password:senha})||{error:{message:'Use o painel Supabase para alterar senhas de outros usuários.'}};
-    if(error)toast('Perfil salvo. Senha: use o painel Supabase para alterar senhas de terceiros.','ok');
-    else toast('Usuário atualizado!','ok');
-  } else {
-    toast('Usuário atualizado!','ok');
-  }
+  toast('Usuário atualizado!','ok');
   closeOv('ov-editar-usuario');
   loadUsuarios();
   if(id===ME?.id)await loadMe();
@@ -1159,7 +1171,7 @@ document.getElementById('btn-salvar-usuario').addEventListener('click',async()=>
   if(senha.length<6){toast('Senha mínimo 6 caracteres','err');return;}
   const{data,error}=await sb.auth.signUp({email,password:senha});
   if(error){toast('Erro: '+error.message,'err');return;}
-  if(data.user)await sb.from('profiles').insert({id:data.user.id,nome,perfil,cor});
+  if(data.user)await sb.from('profiles').insert({id:data.user.id,nome,perfil,cor,email});
   ['u-nome','u-email','u-senha'].forEach(id=>document.getElementById(id).value='');
   closeOv('ov-usuario');toast('Usuário criado!','ok');loadUsuarios();
 });
