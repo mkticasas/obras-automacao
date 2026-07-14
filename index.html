@@ -519,11 +519,9 @@ async function doLogin(){
   const err=document.getElementById('login-err');
   err.style.display='none';
   if(!email||!senha){err.textContent='Preencha e-mail e senha.';err.style.display='block';return;}
-  btn.textContent='Verificando...';btn.disabled=true;
+  btn.textContent='Entrando...';btn.disabled=true;
   try{
-    await fetch(SB_URL+'/auth/v1/health');
-    btn.textContent='Entrando...';
-    const{data,error}=await withTimeout(sb.auth.signInWithPassword({email,password:senha}),20000);
+    const{data,error}=await sb.auth.signInWithPassword({email,password:senha});
     if(error){
       const msgs={'Invalid login credentials':'E-mail ou senha incorretos.'};
       err.textContent=msgs[error.message]||error.message;
@@ -532,7 +530,8 @@ async function doLogin(){
       await iniciarApp(data.session);
     }
   }catch(e){
-    err.textContent=e.message==='timeout'?'Servidor sem resposta.':'Erro: '+e.message;
+    console.error('Login ex:',e);
+    err.textContent='Erro: '+e.message;
     err.style.display='block';
   }finally{
     btn.textContent='Entrar';btn.disabled=false;
