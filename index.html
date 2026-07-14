@@ -154,13 +154,33 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .modal{background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;max-height:90vh}
 .modal.sm{width:420px}
 .modal.md{width:500px}
-.modal.lg{width:600px}
+.modal.lg{width:620px}
+.modal.xl{width:860px;max-width:98vw}
 .modal-head{padding:16px 18px 13px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0}
 .modal-head h3{font-size:15px;font-weight:600}
 .modal-head p{font-size:11px;color:var(--text2);margin-top:2px}
 .m-x{background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;line-height:1}
 .m-x:hover{color:var(--text)}
-.modal-body{padding:16px 18px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;flex:1}
+.modal-body{padding:0;display:flex;flex-direction:row;overflow:hidden;flex:1}
+.modal-col-main{flex:1;padding:16px 18px;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
+.modal-col-main::-webkit-scrollbar{width:3px}
+.modal-col-main::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.modal-col-side{width:210px;flex-shrink:0;border-left:1px solid var(--border);padding:14px 12px;overflow-y:auto;display:flex;flex-direction:column;background:var(--bg3)}
+.modal-col-side::-webkit-scrollbar{width:3px}
+.modal-col-side::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.side-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:8px}
+.side-member{display:flex;align-items:center;gap:7px;padding:6px 7px;border-radius:6px;border:1px solid transparent;transition:all .15s;margin-bottom:4px}
+.side-member.atribuido{border-color:var(--mcor,#4ca8d8);background:rgba(255,255,255,.03)}
+.side-member-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.side-member-nome{font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side-member-perfil{font-size:10px;color:var(--text3)}
+.side-member-cb{cursor:pointer;width:14px;height:14px;flex-shrink:0}
+.side-divider{border-top:1px solid var(--border);margin:12px 0 10px}
+.side-hist{display:flex;flex-direction:column;gap:0}
+.side-hist-item{padding:7px 0;border-bottom:1px solid var(--border)}
+.side-hist-item:last-child{border-bottom:none}
+.side-hist-acao{font-size:11px;line-height:1.4;color:var(--text)}
+.side-hist-data{font-size:10px;color:var(--text3);margin-top:2px}
 .modal-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
 .flabel{display:block;font-size:11px;color:var(--text2);font-weight:500;margin-bottom:5px}
 .finput,.fselect{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:9px 11px;font-size:13px;outline:none;transition:border-color .2s}
@@ -408,7 +428,7 @@ tr:hover td{background:var(--bg3)}
 
 <!-- MODAL DETALHE -->
 <div class="overlay" id="ov-detalhe">
-  <div class="modal lg">
+  <div class="modal xl">
     <div class="modal-head">
       <div><h3 id="d-cliente">—</h3><p id="d-end">—</p></div>
       <div style="display:flex;gap:8px;align-items:center">
@@ -416,7 +436,11 @@ tr:hover td{background:var(--bg3)}
         <button class="m-x" onclick="closeOv('ov-detalhe')">×</button>
       </div>
     </div>
-    <div class="modal-body" id="d-body"><div class="loading-txt">Carregando...</div></div>
+    <div class="modal-body" id="d-body-wrap">
+      <div class="modal-col-main" id="d-body"></div>
+      <div class="modal-col-side" id="d-side"></div>
+    </div>
+    <div class="modal-foot" id="d-foot"></div>
   </div>
 </div>
 
@@ -796,8 +820,9 @@ async function openDetalhe(obra,atribuicoes){
   OBRA_ID=obra.id;OBRA_ATUAL=obra;
   document.getElementById('d-cliente').textContent=obra.cliente;
   document.getElementById('d-end').textContent=obra.endereco||'—';
-  const body=document.getElementById('d-body');
-  body.innerHTML='<div class="loading-txt">Carregando...</div>';
+  document.getElementById('d-body').innerHTML='<div class="loading-txt">Carregando...</div>';
+  document.getElementById('d-side').innerHTML='';
+  document.getElementById('d-foot').innerHTML='';
   openOv('ov-detalhe');
 
   const[{data:etapas},{data:cl},{data:bloqueios},{data:historico},{data:todosProfiles}]=await Promise.all([
@@ -810,64 +835,72 @@ async function openDetalhe(obra,atribuicoes){
 
   const bloqMap={};(bloqueios||[]).forEach(b=>bloqMap[b.etapa_id]={profile_id:b.profile_id,nome:b.profile_nome,cor:b.profile_cor});
 
-  body.innerHTML='';
+  const body=document.getElementById('d-body');
+  const side=document.getElementById('d-side');
+  const foot=document.getElementById('d-foot');
+  body.innerHTML='';side.innerHTML='';foot.innerHTML='';
 
-  // SEÇÃO: ATRIBUIÇÕES (só gestor)
-  if(PERFIL==='gestor'){
-    const sec=document.createElement('div');sec.className='detalhe-section';
-    sec.innerHTML=`<div class="detalhe-section-title">Equipe atribuída</div>
-      <div id="atrib-lista" style="display:flex;flex-direction:column;gap:5px"></div>`;
-    body.appendChild(sec);
+  // ── PAINEL DIREITO: EQUIPE + HISTÓRICO ──
+  const atribIds=new Set((atribuicoes||[]).map(a=>a.profile_id));
 
-    const atribListaEl=sec.querySelector('#atrib-lista');
-    const atribIds=new Set((atribuicoes||[]).map(a=>a.profile_id));
+  // título equipe
+  const sideTeamTitle=document.createElement('div');sideTeamTitle.className='side-title';sideTeamTitle.textContent='Equipe';
+  side.appendChild(sideTeamTitle);
 
-    function renderAtribLista(){
-      atribListaEl.innerHTML='';
-      if(!(todosProfiles||[]).filter(p=>p.id!==ME.id).length){
-        atribListaEl.innerHTML='<span style="font-size:12px;color:var(--text3)">Nenhum técnico cadastrado.</span>';
-        return;
-      }
-      (todosProfiles||[]).filter(p=>p.id!==ME.id).forEach(p=>{
-        const checked=atribIds.has(p.id);
-        const row=document.createElement('label');
-        row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg3);border-radius:var(--radius);cursor:pointer;border:1px solid '+(checked?p.cor||'var(--blue)':'var(--border)')+';transition:border-color .2s';
-        row.innerHTML=`
-          <div style="width:10px;height:10px;border-radius:50%;background:${p.cor||'#4ca8d8'};flex-shrink:0"></div>
-          <span style="font-size:13px;flex:1">${p.nome}</span>
-          <span style="font-size:10px;color:var(--text3)">${p.perfil}</span>
-          <input type="checkbox" ${checked?'checked':''} style="width:15px;height:15px;accent-color:${p.cor||'#4ca8d8'};flex-shrink:0">
-        `;
-        const cb=row.querySelector('input');
-        cb.addEventListener('change',async()=>{
-          if(cb.checked){
-            await sb.from('obra_atribuicoes').insert({obra_id:obra.id,profile_id:p.id});
-            atribIds.add(p.id);
-            atribuicoes.push({profile_id:p.id,nome:p.nome,cor:p.cor||'#4ca8d8'});
-            row.style.borderColor=p.cor||'var(--blue)';
-          } else {
-            await sb.from('obra_atribuicoes').delete().eq('obra_id',obra.id).eq('profile_id',p.id);
-            atribIds.delete(p.id);
-            const idx=atribuicoes.findIndex(a=>a.profile_id===p.id);
-            if(idx>-1)atribuicoes.splice(idx,1);
-            row.style.borderColor='var(--border)';
-          }
-          renderBoard();
-          toast(cb.checked?p.nome+' atribuído':'Atribuição removida','ok');
-        });
-        atribListaEl.appendChild(row);
+  // lista de membros
+  (todosProfiles||[]).filter(p=>p.id!==ME?.id).forEach(p=>{
+    const checked=atribIds.has(p.id);
+    const row=document.createElement('div');
+    row.className='side-member'+(checked?' atribuido':'');
+    row.style.setProperty('--mcor',p.cor||'#4ca8d8');
+    row.innerHTML=`
+      <div class="side-member-dot" style="background:${p.cor||'#4ca8d8'}"></div>
+      <span class="side-member-nome">${p.nome}</span>
+      <span class="side-member-perfil">${p.perfil}</span>
+      ${PERFIL==='gestor'?`<input type="checkbox" class="side-member-cb" ${checked?'checked':''} style="accent-color:${p.cor||'#4ca8d8'}">`:''}
+    `;
+    if(PERFIL==='gestor'){
+      const cb=row.querySelector('input');
+      cb.addEventListener('change',async e=>{
+        e.stopPropagation();
+        if(cb.checked){
+          await sb.from('obra_atribuicoes').insert({obra_id:obra.id,profile_id:p.id});
+          atribIds.add(p.id);atribuicoes.push({profile_id:p.id,nome:p.nome,cor:p.cor||'#4ca8d8'});
+          row.classList.add('atribuido');
+        } else {
+          await sb.from('obra_atribuicoes').delete().eq('obra_id',obra.id).eq('profile_id',p.id);
+          atribIds.delete(p.id);
+          const idx=atribuicoes.findIndex(a=>a.profile_id===p.id);if(idx>-1)atribuicoes.splice(idx,1);
+          row.classList.remove('atribuido');
+        }
+        renderBoard();
+        toast(cb.checked?p.nome+' atribuído':'Atribuição removida','ok');
       });
     }
-    renderAtribLista();
+    side.appendChild(row);
+  });
 
-    const divider=document.createElement('div');
-    divider.style.cssText='border-top:1px solid var(--border);margin:4px 0';
-    body.appendChild(divider);
+  // histórico
+  const sideDivider=document.createElement('div');sideDivider.className='side-divider';side.appendChild(sideDivider);
+  const sideHistTitle=document.createElement('div');sideHistTitle.className='side-title';sideHistTitle.textContent='Histórico';side.appendChild(sideHistTitle);
+  const sideHist=document.createElement('div');sideHist.className='side-hist';
+  if(!(historico||[]).length){
+    sideHist.innerHTML='<span style="font-size:11px;color:var(--text3)">Nenhum registro.</span>';
+  } else {
+    (historico||[]).forEach(h=>{
+      const etapaNome=(etapas||[]).find(e=>e.id===h.etapa_id)?.nome||'Etapa';
+      const dt=new Date(h.criado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const el=document.createElement('div');el.className='side-hist-item';
+      el.innerHTML=`<div class="side-hist-acao"><span style="color:${h.profile_cor||'#4ca8d8'};font-weight:500">${h.profile_nome||'—'}</span> ${h.acao==='marcado'?'✓':'✗'} <span style="color:var(--text2)">${etapaNome}</span>${h.item_nome?`<br><span style="color:var(--text3);font-size:10px">${h.item_nome}</span>`:''}</div>
+        <div class="side-hist-data">${dt}</div>`;
+      sideHist.appendChild(el);
+    });
   }
+  side.appendChild(sideHist);
 
-  // SEÇÃO: CHECKLISTS
-  const ckSec=document.createElement('div');ckSec.className='detalhe-section';
-  ckSec.innerHTML='<div class="detalhe-section-title">Etapas da obra</div>';
+  // ── PAINEL ESQUERDO: ETAPAS ──
+  const ckTitle=document.createElement('div');ckTitle.className='detalhe-section-title';ckTitle.style.marginBottom='10px';ckTitle.textContent='Etapas da obra';
+  body.appendChild(ckTitle);
 
   (etapas||[]).forEach(etapa=>{
     const items=(cl||[]).filter(c=>c.acomp_checklist_template?.etapa_id===etapa.id)
@@ -891,8 +924,7 @@ async function openDetalhe(obra,atribuicoes){
     }
 
     head.innerHTML=`<span class="etapa-nome">${etapa.numero}. ${etapa.nome}</span>
-      <div class="etapa-right">
-        ${lockHTML}
+      <div class="etapa-right">${lockHTML}
         <span class="etapa-pct" id="ep-${etapa.id}">${done}/${total} — ${pct}%</span>
         <span class="etapa-chev aberto">▾</span>
       </div>`;
@@ -905,7 +937,6 @@ async function openDetalhe(obra,atribuicoes){
     barWrap.appendChild(bf);
 
     const list=document.createElement('div');list.className='checklist';
-
     if(!items.length){
       list.innerHTML='<span style="font-size:12px;color:var(--text3)">Nenhum item.</span>';
     } else {
@@ -913,97 +944,60 @@ async function openDetalhe(obra,atribuicoes){
         const tmpl=item.acomp_checklist_template;
         const row=document.createElement('div');row.className='ck-row';
         const cb=document.createElement('input');cb.type='checkbox';cb.checked=!!item.concluido;cb.id='ck-'+item.id;
-        // desabilita se bloqueado por outro
         if(etapaBloqueadaParaMim)cb.disabled=true;
         const lbl=document.createElement('label');lbl.className='ck-lbl'+(item.concluido?' feito':'');lbl.htmlFor='ck-'+item.id;
         lbl.textContent=tmpl?.item||'—';
         row.appendChild(cb);row.appendChild(lbl);
-
         cb.addEventListener('change',async()=>{
           if(etapaBloqueadaParaMim){cb.checked=!cb.checked;return;}
           const v=cb.checked;
           lbl.classList.toggle('feito',v);
           await sb.from('acomp_obra_checklist').update({concluido:v,concluido_em:v?new Date().toISOString():null}).eq('id',item.id);
-
-          // registrar histórico
           await sb.from('checklist_historico').insert({
             obra_id:obra.id,etapa_id:etapa.id,obra_checklist_id:item.id,
             profile_id:ME.id,profile_nome:document.getElementById('sb-nome').textContent,
-            profile_cor:ME_COR,acao:v?'marcado':'desmarcado',
-            item_nome:tmpl?.item||'—'
+            profile_cor:ME_COR,acao:v?'marcado':'desmarcado',item_nome:tmpl?.item||'—'
           });
-
-          // criar bloqueio se ainda não existir (primeiro a marcar)
           if(v&&!bloqMap[etapa.id]){
             const nome=document.getElementById('sb-nome').textContent;
-            await sb.from('etapa_bloqueios').insert({
-              obra_id:obra.id,etapa_id:etapa.id,
-              profile_id:ME.id,profile_nome:nome,profile_cor:ME_COR
-            });
+            await sb.from('etapa_bloqueios').insert({obra_id:obra.id,etapa_id:etapa.id,profile_id:ME.id,profile_nome:nome,profile_cor:ME_COR});
             bloqMap[etapa.id]={profile_id:ME.id,nome,cor:ME_COR};
-            // atualiza visual da etapa
             head.querySelector('.etapa-right').insertAdjacentHTML('afterbegin',
-              `<span class="etapa-lock" style="background:${ME_COR}22;color:${ME_COR}">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>${nome}</span>`
+              `<span class="etapa-lock" style="background:${ME_COR}22;color:${ME_COR}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>${nome}</span>`
             );
           }
-
-          // atualiza barras
           const newDone=list.querySelectorAll('input:checked').length;
           const newPct=Math.round((newDone/total)*100);
           document.getElementById('eb-'+etapa.id).style.width=newPct+'%';
           document.getElementById('eb-'+etapa.id).className='etapa-bar-fill'+(newPct===100?' ok':'');
           document.getElementById('ep-'+etapa.id).textContent=`${newDone}/${total} — ${newPct}%`;
+          // atualiza histórico lateral em tempo real
+          const novoHist=document.createElement('div');novoHist.className='side-hist-item';
+          const etapaNome=etapa.nome;const dt=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+          novoHist.innerHTML=`<div class="side-hist-acao"><span style="color:${ME_COR};font-weight:500">${document.getElementById('sb-nome').textContent}</span> ${v?'✓':'✗'} <span style="color:var(--text2)">${etapaNome}</span><br><span style="color:var(--text3);font-size:10px">${tmpl?.item||''}</span></div><div class="side-hist-data">${dt}</div>`;
+          sideHist.insertBefore(novoHist,sideHist.firstChild);
           atualizarBarraCard(obra.id);
           toast(v?'✓ Marcado':'Desmarcado','ok');
         });
         list.appendChild(row);
       });
     }
-
     head.addEventListener('click',()=>{list.classList.toggle('fechado');head.querySelector('.etapa-chev').classList.toggle('aberto');});
     bloco.appendChild(head);bloco.appendChild(barWrap);bloco.appendChild(list);
-    ckSec.appendChild(bloco);
+    body.appendChild(bloco);
   });
-  body.appendChild(ckSec);
 
-  // SEÇÃO: HISTÓRICO
-  const histSec=document.createElement('div');histSec.className='detalhe-section';
-  histSec.style.borderTop='1px solid var(--border)';histSec.style.paddingTop='14px';histSec.style.marginTop='4px';
-  histSec.innerHTML='<div class="detalhe-section-title">Histórico</div>';
-  const histList=document.createElement('div');histList.className='hist-list';
-  if(!(historico||[]).length){
-    histList.innerHTML='<span style="font-size:12px;color:var(--text3)">Nenhum registro ainda.</span>';
-  } else {
-    (historico||[]).forEach(h=>{
-      const etapaNome=(etapas||[]).find(e=>e.id===h.etapa_id)?.nome||'Etapa';
-      const dt=new Date(h.criado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-      const itemNome=h.item_nome?` — <em style="color:var(--text2);font-style:normal">${h.item_nome}</em>`:'';
-      const item=document.createElement('div');item.className='hist-item';
-      item.innerHTML=`<div class="hist-dot" style="background:${h.profile_cor||'#4ca8d8'}"></div>
-        <div class="hist-content">
-          <div class="hist-acao"><span style="color:${h.profile_cor||'#4ca8d8'}">${h.profile_nome||'—'}</span> ${h.acao==='marcado'?'marcou':'desmarcou'} em <strong>${etapaNome}</strong>${itemNome}</div>
-          <div class="hist-sub">${dt}</div>
-        </div>`;
-      histList.appendChild(item);
-    });
-  }
-  histSec.appendChild(histList);body.appendChild(histSec);
-
-  // MOVER
-  const moverSec=document.createElement('div');moverSec.className='mover-sec';
-  moverSec.innerHTML=`<div class="mover-title">Mover para coluna</div>
-    <div class="mover-row">
-      <select class="m-sel" id="m-sel">
-        <option value="em_andamento">Em andamento</option><option value="seg">Segunda</option>
-        <option value="ter">Terça</option><option value="qua">Quarta</option>
-        <option value="qui">Quinta</option><option value="sex">Sexta</option>
-        <option value="revisao">Revisão</option>
-      </select>
-      <button class="btn-mover" id="btn-mover">Mover</button>
-      <button class="btn-concluir" id="btn-concluir">✓ Concluir</button>
-    </div>`;
-  body.appendChild(moverSec);
+  // ── RODAPÉ: MOVER ──
+  foot.innerHTML=`
+    <select class="m-sel" id="m-sel" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 11px;font-size:13px;outline:none">
+      <option value="em_andamento">Em andamento</option><option value="seg">Segunda</option>
+      <option value="ter">Terça</option><option value="qua">Quarta</option>
+      <option value="qui">Quinta</option><option value="sex">Sexta</option>
+      <option value="revisao">Revisão</option>
+    </select>
+    <button class="btn-mover" id="btn-mover">Mover</button>
+    <button class="btn-concluir" id="btn-concluir">✓ Concluir</button>
+  `;
   if(obra.status_coluna!=='concluido')document.getElementById('m-sel').value=obra.status_coluna;
   document.getElementById('btn-mover').onclick=async()=>{
     const v=document.getElementById('m-sel').value;
