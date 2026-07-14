@@ -295,12 +295,13 @@ tr:hover td{background:var(--bg3)}
       </div>
     </nav>
     <div class="sb-footer">
-      <div class="sb-user">
+      <div class="sb-user" id="btn-meu-perfil" title="Editar meu perfil">
         <div class="avatar" id="sb-avatar" style="background:#4ca8d8">?</div>
         <div style="flex:1;min-width:0">
           <div class="sb-nome" id="sb-nome">—</div>
           <div class="sb-perfil" id="sb-perfil">—</div>
         </div>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text3);flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </div>
       <button class="btn-sair" id="btn-sair">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sair
@@ -345,7 +346,7 @@ tr:hover td{background:var(--bg3)}
         </div>
         <div class="tbl-card">
           <table>
-            <thead><tr><th>Cor</th><th>Nome</th><th>Perfil</th><th>Desde</th></tr></thead>
+            <thead><tr><th>Cor</th><th>Nome</th><th>Perfil</th><th>Desde</th><th></th></tr></thead>
             <tbody id="usuarios-tbody"><tr><td colspan="4" class="loading-txt">Carregando...</td></tr></tbody>
           </table>
         </div>
@@ -440,6 +441,60 @@ tr:hover td{background:var(--bg3)}
     <div class="modal-foot">
       <button class="btn-cancel" onclick="closeOv('ov-editar')">Cancelar</button>
       <button class="btn-save" id="btn-salvar-edicao">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR USUÁRIO (gestor) -->
+<div class="overlay" id="ov-editar-usuario">
+  <div class="modal sm">
+    <div class="modal-head"><div><h3>Editar Usuário</h3></div><button class="m-x" onclick="closeOv('ov-editar-usuario')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="eu-id">
+      <div><label class="flabel">Nome completo *</label><input class="finput" id="eu-nome"></div>
+      <div class="frow">
+        <div><label class="flabel">Perfil</label>
+          <select class="fselect" id="eu-perfil"><option value="tecnico">Técnico</option><option value="gestor">Gestor</option></select>
+        </div>
+        <div><label class="flabel">Nova senha <span style="color:var(--text3)">(opcional)</span></label><input class="finput" type="password" id="eu-senha" placeholder="Deixe vazio pra manter"></div>
+      </div>
+      <div>
+        <label class="flabel">Cor do perfil</label>
+        <div class="color-picker" id="eu-color-picker"></div>
+        <input type="hidden" id="eu-cor">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-danger" id="btn-excluir-usuario">Excluir</button>
+      <div style="flex:1"></div>
+      <button class="btn-cancel" onclick="closeOv('ov-editar-usuario')">Cancelar</button>
+      <button class="btn-save" id="btn-salvar-editar-usuario">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MEU PERFIL -->
+<div class="overlay" id="ov-meu-perfil">
+  <div class="modal sm">
+    <div class="modal-head"><div><h3>Meu Perfil</h3></div><button class="m-x" onclick="closeOv('ov-meu-perfil')">×</button></div>
+    <div class="modal-body">
+      <div><label class="flabel">Nome completo *</label><input class="finput" id="mp-nome"></div>
+      <div>
+        <label class="flabel">Cor do perfil</label>
+        <div class="color-picker" id="mp-color-picker"></div>
+        <input type="hidden" id="mp-cor">
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+        <div class="flabel" style="margin-bottom:10px">Alterar senha</div>
+        <div class="frow">
+          <div><label class="flabel">Nova senha</label><input class="finput" type="password" id="mp-senha" placeholder="Mínimo 6 caracteres"></div>
+          <div><label class="flabel">Confirmar senha</label><input class="finput" type="password" id="mp-senha2" placeholder="Repita a senha"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeOv('ov-meu-perfil')">Cancelar</button>
+      <button class="btn-save" id="btn-salvar-meu-perfil">Salvar</button>
     </div>
   </div>
 </div>
@@ -1002,14 +1057,94 @@ document.getElementById('btn-salvar-obra').addEventListener('click',async()=>{
 async function loadUsuarios(){
   const{data}=await sb.from('profiles').select('*').order('criado_em');
   const tb=document.getElementById('usuarios-tbody');
-  if(!data?.length){tb.innerHTML='<tr><td colspan="4" class="loading-txt">Nenhum usuário</td></tr>';return;}
+  if(!data?.length){tb.innerHTML='<tr><td colspan="5" class="loading-txt">Nenhum usuário</td></tr>';return;}
   tb.innerHTML=data.map(u=>`<tr>
     <td><div style="width:16px;height:16px;border-radius:50%;background:${u.cor||'#4ca8d8'}"></div></td>
-    <td>${u.nome}</td>
+    <td>${u.nome}${u.id===ME?.id?' <span style="font-size:10px;color:var(--text3)">(você)</span>':''}</td>
     <td><span class="badge ${u.perfil}">${u.perfil}</span></td>
     <td style="color:var(--text2)">${new Date(u.criado_em).toLocaleDateString('pt-BR')}</td>
+    <td>
+      <button onclick="abrirEditarUsuario(${JSON.stringify(u).replace(/"/g,'&quot;')})"
+        style="background:none;border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">
+        Editar
+      </button>
+    </td>
   </tr>`).join('');
 }
+
+window.abrirEditarUsuario=function(u){
+  document.getElementById('eu-id').value=u.id;
+  document.getElementById('eu-nome').value=u.nome;
+  document.getElementById('eu-perfil').value=u.perfil;
+  document.getElementById('eu-senha').value='';
+  document.getElementById('eu-cor').value=u.cor||'#4ca8d8';
+  renderColorPicker('eu-color-picker','eu-cor',u.cor||'#4ca8d8');
+  openOv('ov-editar-usuario');
+};
+
+document.getElementById('btn-salvar-editar-usuario').addEventListener('click',async()=>{
+  const id=document.getElementById('eu-id').value;
+  const nome=document.getElementById('eu-nome').value.trim();
+  const perfil=document.getElementById('eu-perfil').value;
+  const cor=document.getElementById('eu-cor').value||'#4ca8d8';
+  const senha=document.getElementById('eu-senha').value;
+  if(!nome){toast('Informe o nome','err');return;}
+  await sb.from('profiles').update({nome,perfil,cor}).eq('id',id);
+  if(senha){
+    if(senha.length<6){toast('Senha mínimo 6 caracteres','err');return;}
+    // atualiza senha via SQL (só funciona com service role; aqui usamos admin workaround)
+    const{error}=await sb.auth.admin?.updateUserById(id,{password:senha})||{error:{message:'Use o painel Supabase para alterar senhas de outros usuários.'}};
+    if(error)toast('Perfil salvo. Senha: use o painel Supabase para alterar senhas de terceiros.','ok');
+    else toast('Usuário atualizado!','ok');
+  } else {
+    toast('Usuário atualizado!','ok');
+  }
+  closeOv('ov-editar-usuario');
+  loadUsuarios();
+  if(id===ME?.id)await loadMe();
+});
+
+document.getElementById('btn-excluir-usuario').addEventListener('click',async()=>{
+  const id=document.getElementById('eu-id').value;
+  const nome=document.getElementById('eu-nome').value;
+  if(id===ME?.id){toast('Você não pode excluir sua própria conta','err');return;}
+  if(!confirm(`Excluir o usuário "${nome}"? Esta ação não pode ser desfeita.`))return;
+  await sb.from('profiles').delete().eq('id',id);
+  closeOv('ov-editar-usuario');
+  toast('Usuário excluído','ok');
+  loadUsuarios();
+});
+
+// MEU PERFIL
+document.getElementById('btn-meu-perfil').addEventListener('click',async()=>{
+  const{data}=await sb.from('profiles').select('*').eq('id',ME.id).single();
+  if(!data)return;
+  document.getElementById('mp-nome').value=data.nome;
+  document.getElementById('mp-cor').value=data.cor||'#4ca8d8';
+  document.getElementById('mp-senha').value='';
+  document.getElementById('mp-senha2').value='';
+  renderColorPicker('mp-color-picker','mp-cor',data.cor||'#4ca8d8');
+  openOv('ov-meu-perfil');
+});
+
+document.getElementById('btn-salvar-meu-perfil').addEventListener('click',async()=>{
+  const nome=document.getElementById('mp-nome').value.trim();
+  const cor=document.getElementById('mp-cor').value||'#4ca8d8';
+  const senha=document.getElementById('mp-senha').value;
+  const senha2=document.getElementById('mp-senha2').value;
+  if(!nome){toast('Informe seu nome','err');return;}
+  if(senha&&senha!==senha2){toast('As senhas não coincidem','err');return;}
+  if(senha&&senha.length<6){toast('Senha mínimo 6 caracteres','err');return;}
+  await sb.from('profiles').update({nome,cor}).eq('id',ME.id);
+  if(senha){
+    const{error}=await sb.auth.updateUser({password:senha});
+    if(error){toast('Perfil salvo, mas erro na senha: '+error.message,'err');return;}
+  }
+  closeOv('ov-meu-perfil');
+  toast('Perfil atualizado!','ok');
+  await loadMe();
+});
+
 document.getElementById('btn-novo-usuario').addEventListener('click',()=>{
   renderColorPicker('u-color-picker','u-cor','#4ca8d8');
   openOv('ov-usuario');
