@@ -521,7 +521,6 @@ const COLS=[
 const{createClient}=supabase;
 const sb=createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
 window.sb=sb;
-window.sb=sb;
 
 let ME=null,PERFIL=null,ME_COR='#4ca8d8',OBRA_ID=null,OBRA_ATUAL=null,SEARCH='',ALERTAS_DATA=[];
 let dragObraId=null;
@@ -819,55 +818,55 @@ async function openDetalhe(obra,atribuicoes){
   // SEÇÃO: ATRIBUIÇÕES (só gestor)
   if(PERFIL==='gestor'){
     const sec=document.createElement('div');sec.className='detalhe-section';
-    sec.innerHTML=`<div class="detalhe-section-title">Perfis atribuídos</div>`;
-    const atribList=document.createElement('div');atribList.className='atrib-list';atribList.id='atrib-list-'+obra.id;
-
-    function renderAtribList(lista){
-      atribList.innerHTML='';
-      if(!lista.length){atribList.innerHTML='<span style="font-size:12px;color:var(--text3)">Nenhum perfil atribuído — todos têm acesso.</span>';return;}
-      lista.forEach(a=>{
-        const row=document.createElement('div');row.className='atrib-item';
-        row.innerHTML=`<div class="atrib-left"><div class="atrib-dot" style="background:${a.cor||'#4ca8d8'}"></div><span class="atrib-nome">${a.nome||'—'}</span></div>
-          <button class="btn-rm-atrib" title="Remover" onclick="removerAtrib('${obra.id}','${a.profile_id}')">×</button>`;
-        atribList.appendChild(row);
-      });
-    }
-    renderAtribList(atribuicoes||[]);
-    sec.appendChild(atribList);
-
-    // add atribuição
-    const addRow=document.createElement('div');addRow.className='atrib-add-row';
-    const sel=document.createElement('select');sel.className='atrib-sel';
-    sel.innerHTML='<option value="">Adicionar perfil...</option>';
-    (todosProfiles||[]).filter(p=>!(atribuicoes||[]).some(a=>a.profile_id===p.id)).forEach(p=>{
-      const opt=document.createElement('option');opt.value=p.id;opt.textContent=p.nome;sel.appendChild(opt);
-    });
-    const btnAdd=document.createElement('button');btnAdd.className='btn-save';btnAdd.textContent='Atribuir';
-    btnAdd.style.cssText='padding:8px 14px;font-size:12px';
-    btnAdd.addEventListener('click',async()=>{
-      const pid=sel.value;if(!pid)return;
-      const pData=todosProfiles.find(p=>p.id===pid);
-      await sb.from('obra_atribuicoes').insert({obra_id:obra.id,profile_id:pid});
-      atribuicoes.push({profile_id:pid,nome:pData?.nome,cor:pData?.cor||'#4ca8d8'});
-      renderAtribList(atribuicoes);
-      const opt=sel.querySelector(`option[value="${pid}"]`);if(opt)opt.remove();
-      toast('Perfil atribuído','ok');renderBoard();
-    });
-    addRow.appendChild(sel);addRow.appendChild(btnAdd);
-    sec.appendChild(addRow);
+    sec.innerHTML=`<div class="detalhe-section-title">Equipe atribuída</div>
+      <div id="atrib-lista" style="display:flex;flex-direction:column;gap:5px"></div>`;
     body.appendChild(sec);
 
-    const div=document.createElement('div');div.style.borderTop='1px solid var(--border)';div.style.marginBottom='4px';
-    body.appendChild(div);
-  }
+    const atribListaEl=sec.querySelector('#atrib-lista');
+    const atribIds=new Set((atribuicoes||[]).map(a=>a.profile_id));
 
-  window.removerAtrib=async(obraId,profileId)=>{
-    await sb.from('obra_atribuicoes').delete().eq('obra_id',obraId).eq('profile_id',profileId);
-    const idx=atribuicoes.findIndex(a=>a.profile_id===profileId);
-    if(idx>-1)atribuicoes.splice(idx,1);
-    document.getElementById('atrib-list-'+obraId)&&renderBoard();
-    toast('Perfil removido','ok');closeOv('ov-detalhe');renderBoard();
-  };
+    function renderAtribLista(){
+      atribListaEl.innerHTML='';
+      if(!(todosProfiles||[]).filter(p=>p.id!==ME.id).length){
+        atribListaEl.innerHTML='<span style="font-size:12px;color:var(--text3)">Nenhum técnico cadastrado.</span>';
+        return;
+      }
+      (todosProfiles||[]).filter(p=>p.id!==ME.id).forEach(p=>{
+        const checked=atribIds.has(p.id);
+        const row=document.createElement('label');
+        row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg3);border-radius:var(--radius);cursor:pointer;border:1px solid '+(checked?p.cor||'var(--blue)':'var(--border)')+';transition:border-color .2s';
+        row.innerHTML=`
+          <div style="width:10px;height:10px;border-radius:50%;background:${p.cor||'#4ca8d8'};flex-shrink:0"></div>
+          <span style="font-size:13px;flex:1">${p.nome}</span>
+          <span style="font-size:10px;color:var(--text3)">${p.perfil}</span>
+          <input type="checkbox" ${checked?'checked':''} style="width:15px;height:15px;accent-color:${p.cor||'#4ca8d8'};flex-shrink:0">
+        `;
+        const cb=row.querySelector('input');
+        cb.addEventListener('change',async()=>{
+          if(cb.checked){
+            await sb.from('obra_atribuicoes').insert({obra_id:obra.id,profile_id:p.id});
+            atribIds.add(p.id);
+            atribuicoes.push({profile_id:p.id,nome:p.nome,cor:p.cor||'#4ca8d8'});
+            row.style.borderColor=p.cor||'var(--blue)';
+          } else {
+            await sb.from('obra_atribuicoes').delete().eq('obra_id',obra.id).eq('profile_id',p.id);
+            atribIds.delete(p.id);
+            const idx=atribuicoes.findIndex(a=>a.profile_id===p.id);
+            if(idx>-1)atribuicoes.splice(idx,1);
+            row.style.borderColor='var(--border)';
+          }
+          renderBoard();
+          toast(cb.checked?p.nome+' atribuído':'Atribuição removida','ok');
+        });
+        atribListaEl.appendChild(row);
+      });
+    }
+    renderAtribLista();
+
+    const divider=document.createElement('div');
+    divider.style.cssText='border-top:1px solid var(--border);margin:4px 0';
+    body.appendChild(divider);
+  }
 
   // SEÇÃO: CHECKLISTS
   const ckSec=document.createElement('div');ckSec.className='detalhe-section';
