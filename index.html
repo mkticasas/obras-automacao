@@ -615,9 +615,7 @@ async function loadMe(){
     document.getElementById('btn-novo-usuario').style.display='flex';
   }
   // re-renderiza o board para aplicar nova cor nos cards
-  if(document.getElementById('view-kanban').classList.contains('active')){
-    renderBoard();
-  }
+  renderBoard();
 }
 document.getElementById('btn-sair').addEventListener('click',()=>sb.auth.signOut());
 
@@ -935,7 +933,8 @@ async function openDetalhe(obra,atribuicoes){
           await sb.from('checklist_historico').insert({
             obra_id:obra.id,etapa_id:etapa.id,obra_checklist_id:item.id,
             profile_id:ME.id,profile_nome:document.getElementById('sb-nome').textContent,
-            profile_cor:ME_COR,acao:v?'marcado':'desmarcado'
+            profile_cor:ME_COR,acao:v?'marcado':'desmarcado',
+            item_nome:tmpl?.item||'—'
           });
 
           // criar bloqueio se ainda não existir (primeiro a marcar)
@@ -983,10 +982,11 @@ async function openDetalhe(obra,atribuicoes){
     (historico||[]).forEach(h=>{
       const etapaNome=(etapas||[]).find(e=>e.id===h.etapa_id)?.nome||'Etapa';
       const dt=new Date(h.criado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const itemNome=h.item_nome?` — <em style="color:var(--text2);font-style:normal">${h.item_nome}</em>`:'';
       const item=document.createElement('div');item.className='hist-item';
       item.innerHTML=`<div class="hist-dot" style="background:${h.profile_cor||'#4ca8d8'}"></div>
         <div class="hist-content">
-          <div class="hist-acao"><span style="color:${h.profile_cor||'#4ca8d8'}">${h.profile_nome||'—'}</span> ${h.acao==='marcado'?'marcou':'desmarcou'} item em <strong>${etapaNome}</strong></div>
+          <div class="hist-acao"><span style="color:${h.profile_cor||'#4ca8d8'}">${h.profile_nome||'—'}</span> ${h.acao==='marcado'?'marcou':'desmarcou'} em <strong>${etapaNome}</strong>${itemNome}</div>
           <div class="hist-sub">${dt}</div>
         </div>`;
       histList.appendChild(item);
@@ -1181,11 +1181,31 @@ document.getElementById('btn-salvar-usuario').addEventListener('click',async()=>
   const cor=document.getElementById('u-cor').value||'#4ca8d8';
   if(!nome||!email||!senha){toast('Preencha todos os campos','err');return;}
   if(senha.length<6){toast('Senha mínimo 6 caracteres','err');return;}
+
+  // salva sessão atual do gestor antes do signUp
+  const{data:{session:sessaoGestor}}=await sb.auth.getSession();
+
   const{data,error}=await sb.auth.signUp({email,password:senha});
   if(error){toast('Erro: '+error.message,'err');return;}
-  if(data.user)await sb.from('profiles').insert({id:data.user.id,nome,perfil,cor,email});
+
+  // insere profile com anon key temporário (novo usuário)
+  const novoId=data.user?.id;
+  if(novoId){
+    // restaura sessão do gestor imediatamente
+    if(sessaoGestor){
+      await sb.auth.setSession({
+        access_token:sessaoGestor.access_token,
+        refresh_token:sessaoGestor.refresh_token
+      });
+    }
+    // insere profile usando sessão do gestor restaurada
+    await sb.from('profiles').insert({id:novoId,nome,perfil,cor,email});
+  }
+
   ['u-nome','u-email','u-senha'].forEach(id=>document.getElementById(id).value='');
-  closeOv('ov-usuario');toast('Usuário criado!','ok');loadUsuarios();
+  closeOv('ov-usuario');
+  toast('Usuário criado! Ele pode logar agora.','ok');
+  loadUsuarios();
 });
 
 // HELPERS
