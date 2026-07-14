@@ -684,10 +684,9 @@ async function renderBoard(){
       const stripColor=euAtribuido?ME_COR:(PERFIL==='gestor'&&temAtrib?atribuicoes[0].cor:'#2a2c2f');
 
       const card=document.createElement('div');
-      card.className='card'+(temAlerta&&acessivel?' tem-alerta':'')+(acessivel?'',' inacessivel').replace(',',' ')+(minhaObra?' minha-obra':'');
-      if(!acessivel)card.className='card inacessivel';
-      if(minhaObra&&acessivel)card.style.borderColor=stripColor+'66';
+      card.className='card'+(temAlerta&&acessivel?' tem-alerta':'')+(!acessivel?' inacessivel':'')+(minhaObra&&acessivel?' minha-obra':'');
       card.dataset.id=obra.id;
+      if(minhaObra&&acessivel)card.style.borderColor=stripColor+'66';
 
       const dotsHTML=atribuicoes.slice(0,5).map(a=>`<div class="card-atrib-dot" style="background:${a.cor}" title="${a.nome||''}"></div>`).join('');
 
