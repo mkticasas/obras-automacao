@@ -614,6 +614,10 @@ async function loadMe(){
     document.getElementById('nav-usuarios').style.display='flex';
     document.getElementById('btn-novo-usuario').style.display='flex';
   }
+  // re-renderiza o board para aplicar nova cor nos cards
+  if(document.getElementById('view-kanban').classList.contains('active')){
+    renderBoard();
+  }
 }
 document.getElementById('btn-sair').addEventListener('click',()=>sb.auth.signOut());
 
@@ -1113,7 +1117,11 @@ document.getElementById('btn-salvar-editar-usuario').addEventListener('click',as
   toast('Usuário atualizado!','ok');
   closeOv('ov-editar-usuario');
   loadUsuarios();
-  if(id===ME?.id)await loadMe();
+  if(id===ME?.id){
+    ME_COR=cor;
+    document.getElementById('sb-avatar').style.background=cor;
+    await loadMe();
+  }
 });
 
 document.getElementById('btn-excluir-usuario').addEventListener('click',async()=>{
@@ -1147,13 +1155,17 @@ document.getElementById('btn-salvar-meu-perfil').addEventListener('click',async(
   if(!nome){toast('Informe seu nome','err');return;}
   if(senha&&senha!==senha2){toast('As senhas não coincidem','err');return;}
   if(senha&&senha.length<6){toast('Senha mínimo 6 caracteres','err');return;}
-  await sb.from('profiles').update({nome,cor}).eq('id',ME.id);
+  const{error:errUpdate}=await sb.from('profiles').update({nome,cor}).eq('id',ME.id);
+  if(errUpdate){toast('Erro ao salvar','err');return;}
   if(senha){
     const{error}=await sb.auth.updateUser({password:senha});
-    if(error){toast('Perfil salvo, mas erro na senha: '+error.message,'err');return;}
+    if(error){toast('Perfil salvo, mas erro na senha: '+error.message,'err');}
   }
   closeOv('ov-meu-perfil');
   toast('Perfil atualizado!','ok');
+  // atualiza variável local imediatamente antes do loadMe
+  ME_COR=cor;
+  document.getElementById('sb-avatar').style.background=cor;
   await loadMe();
 });
 
