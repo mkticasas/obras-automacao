@@ -578,6 +578,7 @@ function renderColorPicker(containerId,hiddenId,selected){
 function withTimeout(p,ms){return Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);}
 
 async function iniciarApp(session){
+  if(ME)return; // evita dupla inicialização
   ME=session.user;
   try{await loadMe();}catch(e){console.error('loadMe:',e);}
   document.getElementById('login-screen').style.display='none';
@@ -587,17 +588,16 @@ async function iniciarApp(session){
   loadNotificacoes();
 }
 
-(async()=>{
-  try{
-    const{data:{session},error}=await sb.auth.getSession();
-    if(error)console.error('getSession:',error);
-    if(session)await iniciarApp(session);
-  }catch(e){console.error('getSession ex:',e);}
-})();
-
+// onAuthStateChange é a fonte principal — cobre login, refresh e restore de sessão
 sb.auth.onAuthStateChange(async(event,session)=>{
-  if(event==='TOKEN_REFRESHED')return;
-  if(event==='SIGNED_OUT'){ME=null;PERFIL=null;document.getElementById('login-screen').style.display='flex';document.getElementById('app').style.display='none';}
+  console.log('Auth event:',event);
+  if((event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED')&&session){
+    await iniciarApp(session);
+  } else if(event==='SIGNED_OUT'){
+    ME=null;PERFIL=null;
+    document.getElementById('login-screen').style.display='flex';
+    document.getElementById('app').style.display='none';
+  }
 });
 
 document.getElementById('btn-login').addEventListener('click',doLogin);
@@ -835,15 +835,12 @@ async function openDetalhe(obra,atribuicoes){
   document.getElementById('d-foot').innerHTML='';
   openOv('ov-detalhe');
 
-  const[{data:etapas},{data:cl},{data:bloqueios},{data:historico},{data:todosProfiles}]=await Promise.all([
+  const[{data:etapas},{data:cl},{data:historico},{data:todosProfiles}]=await Promise.all([
     sb.from('acomp_etapas_template').select('*').order('ordem'),
     sb.from('acomp_obra_checklist').select('id,concluido,concluido_em,acomp_checklist_template(id,item,ordem,etapa_id)').eq('obra_id',obra.id),
-    sb.from('etapa_bloqueios').select('*').eq('obra_id',obra.id),
     sb.from('checklist_historico').select('*').eq('obra_id',obra.id).order('criado_em',{ascending:false}).limit(30),
     sb.from('profiles').select('id,nome,cor,perfil'),
   ]);
-
-  const bloqMap={};(bloqueios||[]).forEach(b=>bloqMap[b.etapa_id]={profile_id:b.profile_id,nome:b.profile_nome,cor:b.profile_cor});
 
   const body=document.getElementById('d-body');
   const side=document.getElementById('d-side');
@@ -964,24 +961,12 @@ async function openDetalhe(obra,atribuicoes){
       .sort((a,b)=>(a.acomp_checklist_template?.ordem||0)-(b.acomp_checklist_template?.ordem||0));
     const total=items.length,done=items.filter(i=>i.concluido).length;
     const pct=total?Math.round((done/total)*100):0;
-    const bloq=bloqMap[etapa.id];
-    const euBloqueei=bloq&&bloq.profile_id===ME?.id;
-    const outroBloqueou=bloq&&!euBloqueei;
-    const etapaBloqueadaParaMim=outroBloqueou&&PERFIL!=='gestor';
 
     const bloco=document.createElement('div');bloco.className='etapa-bloco';
     const head=document.createElement('div');head.className='etapa-header';
 
-    let lockHTML='';
-    if(bloq){
-      const lockColor=bloq.cor||'#4ca8d8';
-      lockHTML=`<span class="etapa-lock" style="background:${lockColor}22;color:${lockColor}">`+
-        `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`+
-        `${bloq.nome}</span>`;
-    }
-
     head.innerHTML=`<span class="etapa-nome">${etapa.numero}. ${etapa.nome}</span>
-      <div class="etapa-right">${lockHTML}
+      <div class="etapa-right">
         <span class="etapa-pct" id="ep-${etapa.id}">${done}/${total} — ${pct}%</span>
         <span class="etapa-chev aberto">▾</span>
       </div>`;
@@ -990,7 +975,6 @@ async function openDetalhe(obra,atribuicoes){
     const bf=document.createElement('div');
     bf.className='etapa-bar-fill'+(pct===100?' ok':'');
     bf.style.width=pct+'%';bf.id='eb-'+etapa.id;
-    if(bloq)bf.style.background=bloq.cor||'var(--blue)';
     barWrap.appendChild(bf);
 
     const list=document.createElement('div');list.className='checklist';
@@ -1001,12 +985,10 @@ async function openDetalhe(obra,atribuicoes){
         const tmpl=item.acomp_checklist_template;
         const row=document.createElement('div');row.className='ck-row';
         const cb=document.createElement('input');cb.type='checkbox';cb.checked=!!item.concluido;cb.id='ck-'+item.id;
-        if(etapaBloqueadaParaMim)cb.disabled=true;
         const lbl=document.createElement('label');lbl.className='ck-lbl'+(item.concluido?' feito':'');lbl.htmlFor='ck-'+item.id;
         lbl.textContent=tmpl?.item||'—';
         row.appendChild(cb);row.appendChild(lbl);
         cb.addEventListener('change',async()=>{
-          if(etapaBloqueadaParaMim){cb.checked=!cb.checked;return;}
           const v=cb.checked;
           lbl.classList.toggle('feito',v);
           await sb.from('acomp_obra_checklist').update({concluido:v,concluido_em:v?new Date().toISOString():null}).eq('id',item.id);
@@ -1015,20 +997,11 @@ async function openDetalhe(obra,atribuicoes){
             profile_id:ME.id,profile_nome:document.getElementById('sb-nome').textContent,
             profile_cor:ME_COR,acao:v?'marcado':'desmarcado',item_nome:tmpl?.item||'—'
           });
-          if(v&&!bloqMap[etapa.id]){
-            const nome=document.getElementById('sb-nome').textContent;
-            await sb.from('etapa_bloqueios').insert({obra_id:obra.id,etapa_id:etapa.id,profile_id:ME.id,profile_nome:nome,profile_cor:ME_COR});
-            bloqMap[etapa.id]={profile_id:ME.id,nome,cor:ME_COR};
-            head.querySelector('.etapa-right').insertAdjacentHTML('afterbegin',
-              `<span class="etapa-lock" style="background:${ME_COR}22;color:${ME_COR}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>${nome}</span>`
-            );
-          }
           const newDone=list.querySelectorAll('input:checked').length;
           const newPct=Math.round((newDone/total)*100);
           document.getElementById('eb-'+etapa.id).style.width=newPct+'%';
           document.getElementById('eb-'+etapa.id).className='etapa-bar-fill'+(newPct===100?' ok':'');
           document.getElementById('ep-'+etapa.id).textContent=`${newDone}/${total} — ${newPct}%`;
-          // atualiza histórico lateral em tempo real
           const novoHist=document.createElement('div');novoHist.className='side-hist-item';
           const etapaNome=etapa.nome;const dt=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
           const simRT=v?'<span style="color:#4ade80;font-weight:700">✓</span>':'<span style="color:#f87171;font-weight:700">✗</span>';
@@ -1223,29 +1196,17 @@ document.getElementById('btn-salvar-usuario').addEventListener('click',async()=>
   const cor=document.getElementById('u-cor').value||'#4ca8d8';
   if(!nome||!email||!senha){toast('Preencha todos os campos','err');return;}
   if(senha.length<6){toast('Senha mínimo 6 caracteres','err');return;}
-
   const btn=document.getElementById('btn-salvar-usuario');
   btn.textContent='Criando...';btn.disabled=true;
   try{
-    // salva sessão do gestor
-    const{data:{session:sessaoGestor}}=await sb.auth.getSession();
-    const{data,error}=await sb.auth.signUp({email,password:senha});
+    const{data,error}=await sb.rpc('admin_create_user',{
+      p_email:email,p_password:senha,p_nome:nome,p_perfil:perfil,p_cor:cor
+    });
     if(error){toast('Erro: '+error.message,'err');return;}
-    const novoId=data.user?.id;
-    if(!novoId){toast('Erro ao criar usuário','err');return;}
-    // restaura sessão do gestor
-    if(sessaoGestor){
-      await sb.auth.setSession({access_token:sessaoGestor.access_token,refresh_token:sessaoGestor.refresh_token});
-    }
-    // insere perfil via RPC (security definer, não depende de sessão)
-    const{error:rpcErr}=await sb.rpc('admin_create_profile',{p_id:novoId,p_nome:nome,p_perfil:perfil,p_cor:cor,p_email:email});
-    if(rpcErr){toast('Erro no perfil: '+rpcErr.message,'err');}
-    else{
-      ['u-nome','u-email','u-senha'].forEach(id=>document.getElementById(id).value='');
-      closeOv('ov-usuario');
-      toast('Usuário criado! Pode logar agora.','ok');
-      loadUsuarios();
-    }
+    ['u-nome','u-email','u-senha'].forEach(id=>document.getElementById(id).value='');
+    closeOv('ov-usuario');
+    toast('Usuário criado! Pode logar agora.','ok');
+    loadUsuarios();
   }finally{btn.textContent='Criar Usuário';btn.disabled=false;}
 });
 
