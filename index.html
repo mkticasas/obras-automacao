@@ -161,11 +161,12 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .modal-head p{font-size:11px;color:var(--text2);margin-top:2px}
 .m-x{background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;line-height:1}
 .m-x:hover{color:var(--text)}
-.modal-body{padding:0;display:flex;flex-direction:row;overflow:hidden;flex:1}
+.modal-body{padding:16px 18px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;flex:1}
+.modal-body-row{padding:0;display:flex;flex-direction:row;overflow:hidden;flex:1}
 .modal-col-main{flex:1;padding:16px 18px;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
 .modal-col-main::-webkit-scrollbar{width:3px}
 .modal-col-main::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-.modal-col-side{width:210px;flex-shrink:0;border-left:1px solid var(--border);padding:14px 12px;overflow-y:auto;display:flex;flex-direction:column;background:var(--bg3)}
+.modal-col-side{width:220px;flex-shrink:0;border-left:1px solid var(--border);padding:14px 12px;overflow-y:auto;display:flex;flex-direction:column;background:var(--bg3)}
 .modal-col-side::-webkit-scrollbar{width:3px}
 .modal-col-side::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .side-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:8px}
@@ -175,12 +176,21 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .side-member-nome{font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .side-member-perfil{font-size:10px;color:var(--text3)}
 .side-member-cb{cursor:pointer;width:14px;height:14px;flex-shrink:0}
-.side-divider{border-top:1px solid var(--border);margin:12px 0 10px}
-.side-hist{display:flex;flex-direction:column;gap:0}
-.side-hist-item{padding:7px 0;border-bottom:1px solid var(--border)}
+.side-divider{border-top:1px solid var(--border);margin:10px 0 8px}
+.side-hist{display:flex;flex-direction:column}
+.side-hist-item{padding:6px 0;border-bottom:1px solid var(--border)}
 .side-hist-item:last-child{border-bottom:none}
-.side-hist-acao{font-size:11px;line-height:1.4;color:var(--text)}
+.side-hist-acao{font-size:11px;line-height:1.4}
 .side-hist-data{font-size:10px;color:var(--text3);margin-top:2px}
+.side-comment-box{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.side-comment-input{background:var(--bg4);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font-size:12px;outline:none;resize:none;width:100%;font-family:inherit}
+.side-comment-input:focus{border-color:var(--blue)}
+.side-comment-send{background:var(--blue2);color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;align-self:flex-end}
+.side-comment-item{padding:6px 0;border-bottom:1px solid var(--border)}
+.side-comment-item:last-child{border-bottom:none}
+.side-comment-autor{font-size:11px;font-weight:500;margin-bottom:2px}
+.side-comment-texto{font-size:11px;color:var(--text2);line-height:1.4}
+.side-comment-data{font-size:10px;color:var(--text3);margin-top:2px}
 .modal-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
 .flabel{display:block;font-size:11px;color:var(--text2);font-weight:500;margin-bottom:5px}
 .finput,.fselect{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:9px 11px;font-size:13px;outline:none;transition:border-color .2s}
@@ -436,7 +446,7 @@ tr:hover td{background:var(--bg3)}
         <button class="m-x" onclick="closeOv('ov-detalhe')">×</button>
       </div>
     </div>
-    <div class="modal-body" id="d-body-wrap">
+    <div class="modal-body-row" id="d-body-wrap">
       <div class="modal-col-main" id="d-body"></div>
       <div class="modal-col-side" id="d-side"></div>
     </div>
@@ -890,13 +900,60 @@ async function openDetalhe(obra,atribuicoes){
     (historico||[]).forEach(h=>{
       const etapaNome=(etapas||[]).find(e=>e.id===h.etapa_id)?.nome||'Etapa';
       const dt=new Date(h.criado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const marcou=h.acao==='marcado';
+      const simbolo=marcou
+        ?'<span style="color:#4ade80;font-weight:700">✓</span>'
+        :'<span style="color:#f87171;font-weight:700">✗</span>';
       const el=document.createElement('div');el.className='side-hist-item';
-      el.innerHTML=`<div class="side-hist-acao"><span style="color:${h.profile_cor||'#4ca8d8'};font-weight:500">${h.profile_nome||'—'}</span> ${h.acao==='marcado'?'✓':'✗'} <span style="color:var(--text2)">${etapaNome}</span>${h.item_nome?`<br><span style="color:var(--text3);font-size:10px">${h.item_nome}</span>`:''}</div>
+      el.innerHTML=`<div class="side-hist-acao"><span style="color:${h.profile_cor||'#4ca8d8'};font-weight:500">${h.profile_nome||'—'}</span> ${simbolo} <span style="color:var(--text2)">${etapaNome}</span>${h.item_nome?`<br><span style="color:var(--text3);font-size:10px">${h.item_nome}</span>`:''}</div>
         <div class="side-hist-data">${dt}</div>`;
       sideHist.appendChild(el);
     });
   }
   side.appendChild(sideHist);
+
+  // comentários
+  const sideDivider2=document.createElement('div');sideDivider2.className='side-divider';side.appendChild(sideDivider2);
+  const sideComTitle=document.createElement('div');sideComTitle.className='side-title';sideComTitle.textContent='Observações';side.appendChild(sideComTitle);
+  const sideComBox=document.createElement('div');sideComBox.className='side-comment-box';
+  const sideComList=document.createElement('div');sideComList.id='comment-list';
+
+  function renderComentarios(lista){
+    sideComList.innerHTML='';
+    if(!(lista||[]).length){sideComList.innerHTML='<span style="font-size:11px;color:var(--text3)">Nenhuma observação.</span>';return;}
+    lista.forEach(c=>{
+      const dt=new Date(c.criado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const el=document.createElement('div');el.className='side-comment-item';
+      el.innerHTML=`<div class="side-comment-autor" style="color:${c.profile_cor||'#4ca8d8'}">${c.profile_nome||'—'}</div>
+        <div class="side-comment-texto">${c.comentario}</div>
+        <div class="side-comment-data">${dt}</div>`;
+      sideComList.appendChild(el);
+    });
+  }
+
+  // carrega comentários
+  sb.from('obra_comentarios').select('*').eq('obra_id',obra.id).order('criado_em',{ascending:false}).limit(20)
+    .then(({data:coms})=>renderComentarios(coms||[]));
+
+  const comInput=document.createElement('textarea');comInput.className='side-comment-input';comInput.placeholder='Adicionar observação...';comInput.rows=2;
+  const comSend=document.createElement('button');comSend.className='side-comment-send';comSend.textContent='Enviar';
+  comSend.addEventListener('click',async()=>{
+    const txt=comInput.value.trim();if(!txt)return;
+    comSend.disabled=true;comSend.textContent='...';
+    await sb.from('obra_comentarios').insert({
+      obra_id:obra.id,profile_id:ME.id,
+      profile_nome:document.getElementById('sb-nome').textContent,
+      profile_cor:ME_COR,comentario:txt
+    });
+    comInput.value='';
+    const{data:coms}=await sb.from('obra_comentarios').select('*').eq('obra_id',obra.id).order('criado_em',{ascending:false}).limit(20);
+    renderComentarios(coms||[]);
+    comSend.disabled=false;comSend.textContent='Enviar';
+    toast('Observação adicionada','ok');
+  });
+  sideComBox.appendChild(comInput);sideComBox.appendChild(comSend);
+  side.appendChild(sideComBox);
+  side.appendChild(sideComList);
 
   // ── PAINEL ESQUERDO: ETAPAS ──
   const ckTitle=document.createElement('div');ckTitle.className='detalhe-section-title';ckTitle.style.marginBottom='10px';ckTitle.textContent='Etapas da obra';
@@ -974,7 +1031,8 @@ async function openDetalhe(obra,atribuicoes){
           // atualiza histórico lateral em tempo real
           const novoHist=document.createElement('div');novoHist.className='side-hist-item';
           const etapaNome=etapa.nome;const dt=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-          novoHist.innerHTML=`<div class="side-hist-acao"><span style="color:${ME_COR};font-weight:500">${document.getElementById('sb-nome').textContent}</span> ${v?'✓':'✗'} <span style="color:var(--text2)">${etapaNome}</span><br><span style="color:var(--text3);font-size:10px">${tmpl?.item||''}</span></div><div class="side-hist-data">${dt}</div>`;
+          const simRT=v?'<span style="color:#4ade80;font-weight:700">✓</span>':'<span style="color:#f87171;font-weight:700">✗</span>';
+          novoHist.innerHTML=`<div class="side-hist-acao"><span style="color:${ME_COR};font-weight:500">${document.getElementById('sb-nome').textContent}</span> ${simRT} <span style="color:var(--text2)">${etapaNome}</span><br><span style="color:var(--text3);font-size:10px">${tmpl?.item||''}</span></div><div class="side-hist-data">${dt}</div>`;
           sideHist.insertBefore(novoHist,sideHist.firstChild);
           atualizarBarraCard(obra.id);
           toast(v?'✓ Marcado':'Desmarcado','ok');
@@ -1111,7 +1169,9 @@ document.getElementById('btn-excluir-usuario').addEventListener('click',async()=
   const nome=document.getElementById('eu-nome').value;
   if(id===ME?.id){toast('Você não pode excluir sua própria conta','err');return;}
   if(!confirm(`Excluir o usuário "${nome}"? Esta ação não pode ser desfeita.`))return;
-  await sb.from('profiles').delete().eq('id',id);
+  // deleta via RPC (sem enviar email)
+  const{error}=await sb.rpc('admin_delete_user',{p_user_id:id});
+  if(error){toast('Erro ao excluir: '+error.message,'err');return;}
   closeOv('ov-editar-usuario');
   toast('Usuário excluído','ok');
   loadUsuarios();
@@ -1145,7 +1205,6 @@ document.getElementById('btn-salvar-meu-perfil').addEventListener('click',async(
   }
   closeOv('ov-meu-perfil');
   toast('Perfil atualizado!','ok');
-  // atualiza variável local imediatamente antes do loadMe
   ME_COR=cor;
   document.getElementById('sb-avatar').style.background=cor;
   await loadMe();
@@ -1155,6 +1214,7 @@ document.getElementById('btn-novo-usuario').addEventListener('click',()=>{
   renderColorPicker('u-color-picker','u-cor','#4ca8d8');
   openOv('ov-usuario');
 });
+
 document.getElementById('btn-salvar-usuario').addEventListener('click',async()=>{
   const nome=document.getElementById('u-nome').value.trim();
   const email=document.getElementById('u-email').value.trim();
@@ -1164,30 +1224,29 @@ document.getElementById('btn-salvar-usuario').addEventListener('click',async()=>
   if(!nome||!email||!senha){toast('Preencha todos os campos','err');return;}
   if(senha.length<6){toast('Senha mínimo 6 caracteres','err');return;}
 
-  // salva sessão atual do gestor antes do signUp
-  const{data:{session:sessaoGestor}}=await sb.auth.getSession();
-
-  const{data,error}=await sb.auth.signUp({email,password:senha});
-  if(error){toast('Erro: '+error.message,'err');return;}
-
-  // insere profile com anon key temporário (novo usuário)
-  const novoId=data.user?.id;
-  if(novoId){
-    // restaura sessão do gestor imediatamente
+  const btn=document.getElementById('btn-salvar-usuario');
+  btn.textContent='Criando...';btn.disabled=true;
+  try{
+    // salva sessão do gestor
+    const{data:{session:sessaoGestor}}=await sb.auth.getSession();
+    const{data,error}=await sb.auth.signUp({email,password:senha});
+    if(error){toast('Erro: '+error.message,'err');return;}
+    const novoId=data.user?.id;
+    if(!novoId){toast('Erro ao criar usuário','err');return;}
+    // restaura sessão do gestor
     if(sessaoGestor){
-      await sb.auth.setSession({
-        access_token:sessaoGestor.access_token,
-        refresh_token:sessaoGestor.refresh_token
-      });
+      await sb.auth.setSession({access_token:sessaoGestor.access_token,refresh_token:sessaoGestor.refresh_token});
     }
-    // insere profile usando sessão do gestor restaurada
-    await sb.from('profiles').insert({id:novoId,nome,perfil,cor,email});
-  }
-
-  ['u-nome','u-email','u-senha'].forEach(id=>document.getElementById(id).value='');
-  closeOv('ov-usuario');
-  toast('Usuário criado! Ele pode logar agora.','ok');
-  loadUsuarios();
+    // insere perfil via RPC (security definer, não depende de sessão)
+    const{error:rpcErr}=await sb.rpc('admin_create_profile',{p_id:novoId,p_nome:nome,p_perfil:perfil,p_cor:cor,p_email:email});
+    if(rpcErr){toast('Erro no perfil: '+rpcErr.message,'err');}
+    else{
+      ['u-nome','u-email','u-senha'].forEach(id=>document.getElementById(id).value='');
+      closeOv('ov-usuario');
+      toast('Usuário criado! Pode logar agora.','ok');
+      loadUsuarios();
+    }
+  }finally{btn.textContent='Criar Usuário';btn.disabled=false;}
 });
 
 // HELPERS
