@@ -619,10 +619,18 @@ const SB_URL='https://mqdhavyaeujufhlqdlfg.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xZGhhdnlhZXVqdWZobHFkbGZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NDg0OTUsImV4cCI6MjA5NTUyNDQ5NX0.bmlsVIXzQ1H-R4CEVZJzg_8TXygBsSQ57GOteBKqLHE';
 const CORES=['#4ca8d8','#57ac6e','#ed8036','#9b7ee8','#e05252','#4db8a0','#e0c052','#e07a8a'];
 const COLS=[
-  {key:'em_andamento',label:'Em andamento',dot:'#ed8036'},
-  {key:'seg',label:'Segunda',dot:'#4ca8d8'},{key:'ter',label:'Terça',dot:'#4ca8d8'},
-  {key:'qua',label:'Quarta',dot:'#4ca8d8'},{key:'qui',label:'Quinta',dot:'#4ca8d8'},
-  {key:'sex',label:'Sexta',dot:'#4ca8d8'},{key:'revisao',label:'Revisão',dot:'#e0c052'},
+  {key:'em_andamento',label:'Em andamento',dot:'#ed8036',section:'Esta semana'},
+  {key:'seg',label:'Segunda',dot:'#4ca8d8'},
+  {key:'ter',label:'Terça',dot:'#4ca8d8'},
+  {key:'qua',label:'Quarta',dot:'#4ca8d8'},
+  {key:'qui',label:'Quinta',dot:'#4ca8d8'},
+  {key:'sex',label:'Sexta',dot:'#4ca8d8'},
+  {key:'prox_seg',label:'Prox. Segunda',dot:'#9b7ee8',section:'Próxima semana'},
+  {key:'prox_ter',label:'Prox. Terça',dot:'#9b7ee8'},
+  {key:'prox_qua',label:'Prox. Quarta',dot:'#9b7ee8'},
+  {key:'prox_qui',label:'Prox. Quinta',dot:'#9b7ee8'},
+  {key:'prox_sex',label:'Prox. Sexta',dot:'#9b7ee8'},
+  {key:'revisao',label:'Revisão',dot:'#e0c052',section:''},
   {key:'concluido',label:'Concluído',dot:'#57ac6e'},
 ];
 const{createClient}=supabase;
@@ -926,7 +934,18 @@ async function renderBoard(){
   });
 
   board.innerHTML='';
-  COLS.forEach(col=>{    const cards=filtered.filter(o=>o.status_coluna===col.key);
+  let secAtual='';
+  COLS.forEach(col=>{    // separador de seção
+    if(col.section!==undefined&&col.section!==secAtual){
+      secAtual=col.section;
+      if(col.section){
+        const sep=document.createElement('div');
+        sep.style.cssText='flex-shrink:0;display:flex;align-items:center;writing-mode:vertical-rl;text-orientation:mixed;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding:0 4px;user-select:none';
+        sep.textContent=col.section;
+        board.appendChild(sep);
+      }
+    }
+    const cards=filtered.filter(o=>o.status_coluna===col.key);
     const colEl=document.createElement('div');colEl.className='col';
     colEl.innerHTML=`<div class="col-head"><div class="col-head-l"><div class="col-dot" style="background:${col.dot}"></div><span class="col-name">${col.label}</span></div><span class="col-count">${cards.length}</span></div><div class="cards-wrap"></div>`;
     board.appendChild(colEl);
@@ -1210,34 +1229,70 @@ async function openDetalhe(obra,atribuicoes){
     body.appendChild(bloco);
   });
 
-  // ── RODAPÉ: MOVER + REGISTRAR VISITA ──
+  // ── RODAPÉ: MOVER + REGISTRAR VISITA + EXCLUIR ──
   const freqDias={semanal:7,quinzenal:14,mensal:30};
   foot.innerHTML=`
-    <button class="btn-mover" id="btn-registrar-visita" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      Registrar visita
+    <button class="btn-danger" id="btn-excluir-obra" style="padding:8px 12px;font-size:12px">🗑 Excluir</button>
+    <button class="btn-mover" id="btn-registrar-visita" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:12px">
+      📅 Registrar visita
     </button>
+    <input type="date" id="btn-data-retorno" class="finput" title="Data específica de retorno" style="width:140px;padding:7px 10px;font-size:12px" placeholder="Data retorno">
     <div style="flex:1"></div>
     <select class="m-sel" id="m-sel" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 11px;font-size:13px;outline:none">
-      <option value="em_andamento">Em andamento</option><option value="seg">Segunda</option>
-      <option value="ter">Terça</option><option value="qua">Quarta</option>
-      <option value="qui">Quinta</option><option value="sex">Sexta</option>
+      <option value="em_andamento">Em andamento</option>
+      <optgroup label="Esta semana">
+        <option value="seg">Segunda</option><option value="ter">Terça</option>
+        <option value="qua">Quarta</option><option value="qui">Quinta</option>
+        <option value="sex">Sexta</option>
+      </optgroup>
+      <optgroup label="Próxima semana">
+        <option value="prox_seg">Prox. Segunda</option><option value="prox_ter">Prox. Terça</option>
+        <option value="prox_qua">Prox. Quarta</option><option value="prox_qui">Prox. Quinta</option>
+        <option value="prox_sex">Prox. Sexta</option>
+      </optgroup>
       <option value="revisao">Revisão</option>
     </select>
     <button class="btn-mover" id="btn-mover">Mover</button>
     <button class="btn-concluir" id="btn-concluir">✓ Concluir</button>
   `;
+
+  // pré-preenche data específica se existir
+  if(obra.proxima_visita) document.getElementById('btn-data-retorno').value=obra.proxima_visita;
   if(obra.status_coluna!=='concluido')document.getElementById('m-sel').value=obra.status_coluna;
+
+  document.getElementById('btn-excluir-obra').onclick=async()=>{
+    if(!confirm(`Excluir a obra "${obra.cliente}"? Esta ação não pode ser desfeita.`))return;
+    await sb.from('acomp_obras').delete().eq('id',OBRA_ID);
+    closeOv('ov-detalhe');toast('Obra excluída','ok');renderBoard();
+  };
 
   document.getElementById('btn-registrar-visita').onclick=async()=>{
     const hoje=new Date().toISOString().split('T')[0];
-    const dias=freqDias[obra.frequencia_visita]||7;
-    const prox=new Date();prox.setDate(prox.getDate()+dias);
-    const proxStr=prox.toISOString().split('T')[0];
+    const dataEsp=document.getElementById('btn-data-retorno').value;
+    let proxStr;
+    if(dataEsp){
+      proxStr=dataEsp;
+    } else {
+      const dias=freqDias[obra.frequencia_visita]||7;
+      const prox=new Date();prox.setDate(prox.getDate()+dias);
+      proxStr=prox.toISOString().split('T')[0];
+    }
     await sb.from('acomp_obras').update({ultima_visita:hoje,proxima_visita:proxStr}).eq('id',OBRA_ID);
     await sb.from('acomp_visitas').insert({obra_id:OBRA_ID,data_visita:hoje});
-    closeOv('ov-detalhe');toast('Visita registrada! Próxima: '+prox.toLocaleDateString('pt-BR'),'ok');renderBoard();
+    closeOv('ov-detalhe');
+    const proxFmt=new Date(proxStr+'T00:00:00').toLocaleDateString('pt-BR');
+    toast('Visita registrada! Próxima: '+proxFmt,'ok');
+    renderBoard();
   };
+
+  // salvar data específica de retorno ao alterar
+  document.getElementById('btn-data-retorno').onchange=async(e)=>{
+    if(!e.target.value)return;
+    await sb.from('acomp_obras').update({proxima_visita:e.target.value}).eq('id',OBRA_ID);
+    toast('Data de retorno salva','ok');
+    renderBoard();
+  };
+
   document.getElementById('btn-mover').onclick=async()=>{
     const v=document.getElementById('m-sel').value;
     await sb.from('acomp_obras').update({status_coluna:v}).eq('id',OBRA_ID);
