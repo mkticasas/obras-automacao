@@ -363,6 +363,17 @@ tr:hover td{background:var(--bg3)}
           <div class="bell-list" id="bell-list"><div class="bell-empty">Nenhuma notificação</div></div>
         </div>
       </div>
+      <!-- ÍCONE VISITAS ATRASADAS -->
+      <div style="position:relative" id="visita-wrap">
+        <div class="bell-btn" id="visita-btn" title="Obras com visita atrasada ou próxima">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <div class="bell-badge" id="visita-badge" style="display:none;background:var(--red)">0</div>
+        </div>
+        <div class="bell-panel" id="visita-panel">
+          <div class="bell-panel-head"><span>Visitas</span></div>
+          <div class="bell-list" id="visita-list"><div class="bell-empty">Tudo em dia</div></div>
+        </div>
+      </div>
     </div>
 
     <div class="view active" id="view-kanban">
@@ -814,8 +825,60 @@ document.getElementById('btn-marcar-lidas').addEventListener('click',async()=>{
   ALERTAS_DATA=ALERTAS_DATA.map(a=>({...a,status:'enviado'}));
   renderSino();toast('Todas lidas','ok');
 });
-document.getElementById('bell-btn').addEventListener('click',e=>{e.stopPropagation();document.getElementById('bell-panel').classList.toggle('open');});
-document.addEventListener('click',e=>{if(!document.getElementById('bell-wrap').contains(e.target))document.getElementById('bell-panel').classList.remove('open');});
+document.getElementById('bell-btn').addEventListener('click',e=>{
+  e.stopPropagation();
+  document.getElementById('bell-panel').classList.toggle('open');
+  document.getElementById('visita-panel').classList.remove('open');
+});
+document.getElementById('visita-btn').addEventListener('click',e=>{
+  e.stopPropagation();
+  document.getElementById('visita-panel').classList.toggle('open');
+  document.getElementById('bell-panel').classList.remove('open');
+});
+document.addEventListener('click',e=>{
+  if(!document.getElementById('visita-wrap').contains(e.target))
+    document.getElementById('visita-panel').classList.remove('open');
+});
+
+function atualizarPainelVisitas(obras){
+  const hoje=new Date();hoje.setHours(0,0,0,0);
+  const urgentes=obras.filter(o=>{
+    if(!o.proxima_visita||o.status_coluna==='concluido')return false;
+    const prox=new Date(o.proxima_visita+'T00:00:00');
+    return prox<=new Date(hoje.getTime()+2*86400000);
+  }).sort((a,b)=>new Date(a.proxima_visita)-new Date(b.proxima_visita));
+
+  const badge=document.getElementById('visita-badge');
+  const list=document.getElementById('visita-list');
+  const atrasadas=urgentes.filter(o=>new Date(o.proxima_visita+'T00:00:00')<hoje).length;
+
+  if(urgentes.length>0){
+    badge.style.display='flex';
+    badge.textContent=urgentes.length>9?'9+':urgentes.length;
+    badge.style.background=atrasadas>0?'var(--red)':'var(--orange)';
+  }else{
+    badge.style.display='none';
+  }
+
+  if(!urgentes.length){list.innerHTML='<div class="bell-empty">Tudo em dia ✓</div>';return;}
+  list.innerHTML=urgentes.map(o=>{
+    const prox=new Date(o.proxima_visita+'T00:00:00');
+    const diff=Math.ceil((prox-hoje)/(1000*60*60*24));
+    let cor,status;
+    if(diff<0){cor='var(--red)';status=`Atrasada ${Math.abs(diff)} dia${Math.abs(diff)>1?'s':''}`;}
+    else if(diff===0){cor='var(--orange)';status='Visitar hoje';}
+    else{cor='var(--yellow)';status=`Em ${diff} dia${diff>1?'s':''}`;}
+    const dtFmt=prox.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+    return `<div class="bell-item">
+      <div class="bell-dot pendente" style="background:${cor}"></div>
+      <div class="bell-item-content">
+        <div class="bell-item-title">${o.cliente}</div>
+        <div class="bell-item-sub" style="color:${cor};font-weight:500">${status} — ${dtFmt}</div>
+        <div class="bell-item-sub">${o.frequencia_visita}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
 
 // DRAG & DROP
 function setupDrag(card,obraId,acessivel){
@@ -846,6 +909,9 @@ async function renderBoard(){
   const alertSet=new Set(ALERTAS_DATA.filter(a=>a.status==='pendente').map(a=>a.obra_id));
   const progMap={};(prog||[]).forEach(r=>progMap[r.obra_id]=parseInt(r.pct_geral||0));
 
+  // atualiza painel de visitas
+  atualizarPainelVisitas(obras||[]);
+
   // mapa de atribuições por obra
   const atribMap={};
   (atribs||[]).forEach(a=>{
@@ -860,8 +926,7 @@ async function renderBoard(){
   });
 
   board.innerHTML='';
-  COLS.forEach(col=>{
-    const cards=filtered.filter(o=>o.status_coluna===col.key);
+  COLS.forEach(col=>{    const cards=filtered.filter(o=>o.status_coluna===col.key);
     const colEl=document.createElement('div');colEl.className='col';
     colEl.innerHTML=`<div class="col-head"><div class="col-head-l"><div class="col-dot" style="background:${col.dot}"></div><span class="col-name">${col.label}</span></div><span class="col-count">${cards.length}</span></div><div class="cards-wrap"></div>`;
     board.appendChild(colEl);
@@ -894,6 +959,21 @@ async function renderBoard(){
 
       const nomesAtrib=atribuicoes.slice(0,3).map(a=>`<span style="color:${a.cor||'#4ca8d8'};font-size:10px;font-weight:600">${(a.nome||'').split(' ')[0]}</span>`).join('<span style="color:var(--text3);font-size:10px"> + </span>');
 
+      // próxima visita
+      let visitaBadge='';
+      if(obra.proxima_visita&&col.key!=='concluido'){
+        const hoje=new Date();hoje.setHours(0,0,0,0);
+        const prox=new Date(obra.proxima_visita+'T00:00:00');
+        const diff=Math.ceil((prox-hoje)/(1000*60*60*24));
+        const dtFmt=prox.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+        let cor,txt;
+        if(diff<0){cor='var(--red)';txt=`⚠ Atrasada ${Math.abs(diff)}d — ${dtFmt}`;}
+        else if(diff===0){cor='var(--orange)';txt=`⚠ Visitar hoje`;}
+        else if(diff<=2){cor='var(--yellow)';txt=`📅 Em ${diff}d — ${dtFmt}`;}
+        else{cor='var(--text3)';txt=`📅 ${dtFmt}`;}
+        visitaBadge=`<div style="margin-top:6px;font-size:10px;font-weight:500;color:${cor}">${txt}</div>`;
+      }
+
       card.innerHTML=`
         <div class="card-strip" style="background:${stripColor}"></div>
         <div class="card-body">
@@ -908,6 +988,7 @@ async function renderBoard(){
           <div class="card-bar"><div class="card-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
           <div class="card-bar-labels"><span>Progresso</span><span>${pct}%</span></div>
           ${nomesAtrib?`<div style="margin-top:7px;display:flex;align-items:center;gap:3px;flex-wrap:wrap">${nomesAtrib}</div>`:''}
+          ${visitaBadge}
           <div class="card-footer">
             <span class="card-freq">${obra.frequencia_visita}</span>
             ${temAlerta&&acessivel?'<span class="card-badge compra">⚠ Comprar equip.</span>':''}
@@ -1129,9 +1210,15 @@ async function openDetalhe(obra,atribuicoes){
     body.appendChild(bloco);
   });
 
-  // ── RODAPÉ: MOVER ──
+  // ── RODAPÉ: MOVER + REGISTRAR VISITA ──
+  const freqDias={semanal:7,quinzenal:14,mensal:30};
   foot.innerHTML=`
-    <select class="m-sel" id="m-sel" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 11px;font-size:13px;outline:none">
+    <button class="btn-mover" id="btn-registrar-visita" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Registrar visita
+    </button>
+    <div style="flex:1"></div>
+    <select class="m-sel" id="m-sel" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 11px;font-size:13px;outline:none">
       <option value="em_andamento">Em andamento</option><option value="seg">Segunda</option>
       <option value="ter">Terça</option><option value="qua">Quarta</option>
       <option value="qui">Quinta</option><option value="sex">Sexta</option>
@@ -1141,6 +1228,16 @@ async function openDetalhe(obra,atribuicoes){
     <button class="btn-concluir" id="btn-concluir">✓ Concluir</button>
   `;
   if(obra.status_coluna!=='concluido')document.getElementById('m-sel').value=obra.status_coluna;
+
+  document.getElementById('btn-registrar-visita').onclick=async()=>{
+    const hoje=new Date().toISOString().split('T')[0];
+    const dias=freqDias[obra.frequencia_visita]||7;
+    const prox=new Date();prox.setDate(prox.getDate()+dias);
+    const proxStr=prox.toISOString().split('T')[0];
+    await sb.from('acomp_obras').update({ultima_visita:hoje,proxima_visita:proxStr}).eq('id',OBRA_ID);
+    await sb.from('acomp_visitas').insert({obra_id:OBRA_ID,data_visita:hoje});
+    closeOv('ov-detalhe');toast('Visita registrada! Próxima: '+prox.toLocaleDateString('pt-BR'),'ok');renderBoard();
+  };
   document.getElementById('btn-mover').onclick=async()=>{
     const v=document.getElementById('m-sel').value;
     await sb.from('acomp_obras').update({status_coluna:v}).eq('id',OBRA_ID);
@@ -1167,27 +1264,40 @@ document.getElementById('btn-abrir-edicao').addEventListener('click',()=>{
 document.getElementById('btn-salvar-edicao').addEventListener('click',async()=>{
   const cliente=document.getElementById('e-cliente').value.trim();
   if(!cliente){toast('Informe o nome','err');return;}
-  await sb.from('acomp_obras').update({
+  const freq=document.getElementById('e-freq').value;
+  const freqMudou=freq!==OBRA_ATUAL?.frequencia_visita;
+  const upd={
     cliente,endereco:document.getElementById('e-end').value.trim()||null,
     contato_whatsapp:document.getElementById('e-wp').value.trim()||null,
     responsavel_comercial:document.getElementById('e-com').value.trim()||null,
-    frequencia_visita:document.getElementById('e-freq').value,
+    frequencia_visita:freq,
     data_prevista_gesso:document.getElementById('e-gesso').value||null,
-  }).eq('id',OBRA_ID);
+  };
+  if(freqMudou) upd.proxima_visita=calcProximaVisita(freq);
+  await sb.from('acomp_obras').update(upd).eq('id',OBRA_ID);
   closeOv('ov-editar');closeOv('ov-detalhe');toast('Obra atualizada!','ok');renderBoard();
 });
 
 // NOVA OBRA
+const FREQ_DIAS={semanal:7,quinzenal:14,mensal:30};
+function calcProximaVisita(freq){
+  const d=new Date();
+  d.setDate(d.getDate()+(FREQ_DIAS[freq]||7));
+  return d.toISOString().split('T')[0];
+}
+
 document.getElementById('btn-nova-obra').addEventListener('click',()=>openOv('ov-obra'));
 document.getElementById('btn-salvar-obra').addEventListener('click',async()=>{
   const cliente=document.getElementById('o-cliente').value.trim();
   if(!cliente){toast('Informe o nome da obra','err');return;}
+  const freq=document.getElementById('o-freq').value;
   const{data,error}=await sb.from('acomp_obras').insert({
     cliente,endereco:document.getElementById('o-end').value.trim()||null,
     contato_whatsapp:document.getElementById('o-wp').value.trim()||null,
     responsavel_comercial:document.getElementById('o-com').value.trim()||null,
-    frequencia_visita:document.getElementById('o-freq').value,
+    frequencia_visita:freq,
     data_prevista_gesso:document.getElementById('o-gesso').value||null,
+    proxima_visita:calcProximaVisita(freq),
   }).select().single();
   if(error){toast('Erro ao salvar','err');return;}
   await sb.rpc('acomp_gerar_checklist_obra',{p_obra_id:data.id});
