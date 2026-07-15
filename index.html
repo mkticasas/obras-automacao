@@ -784,7 +784,7 @@ async function renderBoard(){
       card.dataset.id=obra.id;
       if(minhaObra&&acessivel)card.style.borderColor=stripColor+'66';
 
-      const dotsHTML=atribuicoes.slice(0,5).map(a=>`<div class="card-atrib-dot" style="background:${a.cor}" title="${a.nome||''}"></div>`).join('');
+      const nomesAtrib=atribuicoes.slice(0,3).map(a=>`<span style="color:${a.cor||'#4ca8d8'};font-size:10px;font-weight:600">${(a.nome||'').split(' ')[0]}</span>`).join('<span style="color:var(--text3);font-size:10px"> + </span>');
 
       card.innerHTML=`
         <div class="card-strip" style="background:${stripColor}"></div>
@@ -799,7 +799,7 @@ async function renderBoard(){
           <div class="card-end">${obra.endereco||'Endereço não informado'}</div>
           <div class="card-bar"><div class="card-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
           <div class="card-bar-labels"><span>Progresso</span><span>${pct}%</span></div>
-          ${dotsHTML?`<div class="card-atrib-dots">${dotsHTML}</div>`:''}
+          ${nomesAtrib?`<div style="margin-top:7px;display:flex;align-items:center;gap:3px;flex-wrap:wrap">${nomesAtrib}</div>`:''}
           <div class="card-footer">
             <span class="card-freq">${obra.frequencia_visita}</span>
             ${temAlerta&&acessivel?'<span class="card-badge compra">⚠ Comprar equip.</span>':''}
