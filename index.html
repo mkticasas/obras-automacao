@@ -157,36 +157,64 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   .col-label-vertical{display:none}
 
   /* cards maiores para toque */
-  .card-body{padding:12px 13px 13px}
-  .card-cliente{font-size:14px}
+  .card-body{padding:14px}
+  .card-cliente{font-size:15px}
   .card-end{font-size:12px}
 
-  /* modal full screen */
+  /* modal full screen bottom sheet */
   .overlay{align-items:flex-end;padding:0}
-  .modal,.modal.xl,.modal.lg,.modal.md,.modal.sm{width:100%;max-width:100%;border-radius:16px 16px 0 0;max-height:92vh}
-  .modal-body-row{flex-direction:column;overflow-y:auto}
-  .modal-col-main{padding:14px 16px}
-  .modal-col-side{width:100%;border-left:none;border-top:1px solid var(--border);max-height:220px}
-  .modal-col-side .side-top{padding:12px 14px 0}
-  .modal-col-side .side-hist-wrap{padding:0 14px}
-  .modal-col-side .side-bottom{padding:0 14px 12px}
+  .modal,.modal.xl,.modal.lg,.modal.md,.modal.sm{
+    width:100% !important;max-width:100% !important;
+    border-radius:18px 18px 0 0;max-height:95vh;
+  }
 
-  /* rodapé modal mobile */
-  .modal-foot{flex-wrap:wrap;gap:8px;padding:10px 14px}
-  .modal-foot select{min-width:120px}
+  /* modal body vira coluna única */
+  .modal-body-row{
+    flex-direction:column !important;
+    overflow-y:auto !important;
+    overflow-x:hidden;
+  }
+  .modal-col-main{
+    padding:16px;
+    overflow-y:visible !important;
+    min-height:0;
+    flex:none;
+  }
+  .modal-col-side{
+    width:100% !important;
+    border-left:none !important;
+    border-top:1px solid var(--border);
+    max-height:none;
+    flex:none;
+  }
+  .modal-col-side .side-top{padding:14px 16px 0}
+  .modal-col-side .side-hist-wrap{
+    padding:0 16px;
+    max-height:200px;
+    overflow-y:auto;
+  }
+  .modal-col-side .side-bottom{padding:0 16px 16px}
 
-  /* view inner (usuários, calculadora) */
+  /* checklist mobile — áreas de toque maiores */
+  .ck-row{padding:10px 0;gap:12px}
+  .ck-row input[type=checkbox]{width:22px !important;height:22px !important}
+  .ck-lbl{font-size:14px !important;line-height:1.5}
+  .etapa-nome{font-size:14px}
+
+  /* rodapé modal */
+  .modal-foot{flex-wrap:wrap;gap:8px;padding:12px 16px;padding-bottom:max(12px,env(safe-area-inset-bottom))}
+  .modal-foot button{flex:1;min-width:100px;padding:12px 10px;font-size:13px}
+  .modal-foot select,.modal-foot input[type=date]{width:100%;flex:1 1 100%}
+  .btn-danger{flex:0 0 auto !important;min-width:auto !important}
+
+  /* view inner */
   .view-inner{padding:14px}
-
-  /* tabela usuários */
   table{font-size:12px}
   th,td{padding:8px 10px}
-
-  /* calculadora */
   .frow{grid-template-columns:1fr}
-
-  /* sidebar aberta: toque fora fecha */
-  .bell-panel{width:calc(100vw - 32px);right:-8px}
+  .bell-panel{width:calc(100vw - 24px);right:-4px}
+  .modal-head{padding:16px}
+  .modal-head h3{font-size:16px}
 }
 .card-bar{height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
 .card-bar-fill{height:100%;border-radius:2px;transition:width .3s}
@@ -587,7 +615,7 @@ tr:hover td{background:var(--bg3)}
     <div class="modal-head">
       <div><h3 id="d-cliente">—</h3><p id="d-end">—</p></div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn-top ghost" id="btn-abrir-edicao" style="font-size:12px;padding:6px 12px">Editar</button>
+        <button class="btn-top ghost" id="btn-abrir-edicao" style="font-size:12px;padding:6px 12px;display:none">Editar</button>
         <button class="m-x" onclick="closeOv('ov-detalhe')">×</button>
       </div>
     </div>
@@ -1132,6 +1160,8 @@ async function openDetalhe(obra,atribuicoes){
   document.getElementById('d-foot').innerHTML='';
   openOv('ov-detalhe');
 
+  document.getElementById('btn-abrir-edicao').style.display=PERFIL==='gestor'?'flex':'none';
+
   const[{data:etapas},{data:cl},{data:historico},{data:todosProfiles}]=await Promise.all([
     sb.from('acomp_etapas_template').select('*').order('ordem'),
     sb.from('acomp_obra_checklist').select('id,concluido,concluido_em,acomp_checklist_template(id,item,ordem,etapa_id)').eq('obra_id',obra.id),
@@ -1321,15 +1351,18 @@ async function openDetalhe(obra,atribuicoes){
     body.appendChild(bloco);
   });
 
-  // ── RODAPÉ: MOVER + REGISTRAR VISITA + EXCLUIR ──
+  // ── RODAPÉ: MOVER + REGISTRAR VISITA + EXCLUIR (só gestor) ──
   const freqDias={semanal:7,quinzenal:14,mensal:30};
+  const isGestor=PERFIL==='gestor';
+
   foot.innerHTML=`
-    <button class="btn-danger" id="btn-excluir-obra" style="padding:8px 12px;font-size:12px">🗑 Excluir</button>
+    ${isGestor?`<button class="btn-danger" id="btn-excluir-obra" style="padding:8px 12px;font-size:12px">🗑 Excluir</button>`:''}
     <button class="btn-mover" id="btn-registrar-visita" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:12px">
       📅 Registrar visita
     </button>
     <input type="date" id="btn-data-retorno" class="finput" title="Data específica de retorno" style="width:140px;padding:7px 10px;font-size:12px" placeholder="Data retorno">
     <div style="flex:1"></div>
+    ${isGestor?`
     <select class="m-sel" id="m-sel" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 11px;font-size:13px;outline:none">
       <option value="em_andamento">Em andamento</option>
       <optgroup label="Esta semana">
@@ -1346,17 +1379,29 @@ async function openDetalhe(obra,atribuicoes){
     </select>
     <button class="btn-mover" id="btn-mover">Mover</button>
     <button class="btn-concluir" id="btn-concluir">✓ Concluir</button>
+    `:''}
   `;
 
-  // pré-preenche data específica se existir
   if(obra.proxima_visita) document.getElementById('btn-data-retorno').value=obra.proxima_visita;
-  if(obra.status_coluna!=='concluido')document.getElementById('m-sel').value=obra.status_coluna;
+  if(isGestor&&obra.status_coluna!=='concluido')document.getElementById('m-sel').value=obra.status_coluna;
 
-  document.getElementById('btn-excluir-obra').onclick=async()=>{
-    if(!confirm(`Excluir a obra "${obra.cliente}"? Esta ação não pode ser desfeita.`))return;
-    await sb.from('acomp_obras').delete().eq('id',OBRA_ID);
-    closeOv('ov-detalhe');toast('Obra excluída','ok');renderBoard();
-  };
+  if(isGestor){
+    document.getElementById('btn-excluir-obra').onclick=async()=>{
+      if(!confirm(`Excluir a obra "${obra.cliente}"? Esta ação não pode ser desfeita.`))return;
+      await sb.from('acomp_obras').delete().eq('id',OBRA_ID);
+      closeOv('ov-detalhe');toast('Obra excluída','ok');renderBoard();
+    };
+    document.getElementById('btn-mover').onclick=async()=>{
+      const v=document.getElementById('m-sel').value;
+      await sb.from('acomp_obras').update({status_coluna:v}).eq('id',OBRA_ID);
+      closeOv('ov-detalhe');toast('Obra movida','ok');renderBoard();
+    };
+    document.getElementById('btn-concluir').onclick=async()=>{
+      if(!confirm('Marcar como concluída?'))return;
+      await sb.from('acomp_obras').update({status_coluna:'concluido'}).eq('id',OBRA_ID);
+      closeOv('ov-detalhe');toast('Obra concluída!','ok');renderBoard();
+    };
+  }
 
   document.getElementById('btn-registrar-visita').onclick=async()=>{
     const hoje=new Date().toISOString().split('T')[0];
@@ -1372,28 +1417,15 @@ async function openDetalhe(obra,atribuicoes){
     await sb.from('acomp_obras').update({ultima_visita:hoje,proxima_visita:proxStr}).eq('id',OBRA_ID);
     await sb.from('acomp_visitas').insert({obra_id:OBRA_ID,data_visita:hoje});
     closeOv('ov-detalhe');
-    const proxFmt=new Date(proxStr+'T00:00:00').toLocaleDateString('pt-BR');
-    toast('Visita registrada! Próxima: '+proxFmt,'ok');
+    toast('Visita registrada! Próxima: '+new Date(proxStr+'T00:00:00').toLocaleDateString('pt-BR'),'ok');
     renderBoard();
   };
 
-  // salvar data específica de retorno ao alterar
   document.getElementById('btn-data-retorno').onchange=async(e)=>{
     if(!e.target.value)return;
     await sb.from('acomp_obras').update({proxima_visita:e.target.value}).eq('id',OBRA_ID);
     toast('Data de retorno salva','ok');
     renderBoard();
-  };
-
-  document.getElementById('btn-mover').onclick=async()=>{
-    const v=document.getElementById('m-sel').value;
-    await sb.from('acomp_obras').update({status_coluna:v}).eq('id',OBRA_ID);
-    closeOv('ov-detalhe');toast('Obra movida','ok');renderBoard();
-  };
-  document.getElementById('btn-concluir').onclick=async()=>{
-    if(!confirm('Marcar como concluída?'))return;
-    await sb.from('acomp_obras').update({status_coluna:'concluido'}).eq('id',OBRA_ID);
-    closeOv('ov-detalhe');toast('Obra concluída!','ok');renderBoard();
   };
 }
 
