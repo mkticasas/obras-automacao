@@ -555,6 +555,7 @@ window.sb=sb;
 
 let ME=null,PERFIL=null,ME_COR='#4ca8d8',OBRA_ID=null,OBRA_ATUAL=null,SEARCH='',ALERTAS_DATA=[];
 let dragObraId=null;
+let criandoUsuario=false; // bloqueia onAuthStateChange durante criação
 
 // COLOR PICKER
 function renderColorPicker(containerId,hiddenId,selected){
@@ -579,6 +580,7 @@ function withTimeout(p,ms){return Promise.race([p,new Promise((_,r)=>setTimeout(
 
 // onAuthStateChange é a fonte principal — cobre login, refresh e restore de sessão
 sb.auth.onAuthStateChange(async(event,session)=>{
+  if(criandoUsuario)return; // ignora eventos durante criação de usuário
   console.log('Auth event:',event);
   if((event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED')&&session){
     if(!ME){
@@ -1199,15 +1201,37 @@ document.getElementById('btn-salvar-usuario').addEventListener('click',async()=>
   const btn=document.getElementById('btn-salvar-usuario');
   btn.textContent='Criando...';btn.disabled=true;
   try{
-    const{data,error}=await sb.rpc('admin_create_user',{
-      p_email:email,p_password:senha,p_nome:nome,p_perfil:perfil,p_cor:cor
-    });
+    criandoUsuario=true; // bloqueia onAuthStateChange
+    // salva tokens do gestor antes de trocar sessão
+    const{data:{session:sessaoGestor}}=await sb.auth.getSession();
+    const gestorToken=sessaoGestor?.access_token;
+    const gestorRefresh=sessaoGestor?.refresh_token;
+
+    // cria o usuário (sem email pois confirmação está desabilitada)
+    const{data,error}=await sb.auth.signUp({email,password:senha});
     if(error){toast('Erro: '+error.message,'err');return;}
+    const novoId=data.user?.id;
+    if(!novoId){toast('Erro ao obter ID do usuário','err');return;}
+
+    // restaura sessão do gestor imediatamente
+    if(gestorToken&&gestorRefresh){
+      await sb.auth.setSession({access_token:gestorToken,refresh_token:gestorRefresh});
+    }
+
+    // insere profile como gestor
+    await sb.from('profiles').insert({id:novoId,nome,perfil,cor,email});
+
     ['u-nome','u-email','u-senha'].forEach(id=>document.getElementById(id).value='');
     closeOv('ov-usuario');
     toast('Usuário criado! Pode logar agora.','ok');
     loadUsuarios();
-  }finally{btn.textContent='Criar Usuário';btn.disabled=false;}
+  }catch(e){
+    console.error('Criar usuário:',e);
+    toast('Erro: '+e.message,'err');
+  }finally{
+    criandoUsuario=false;
+    btn.textContent='Criar Usuário';btn.disabled=false;
+  }
 });
 
 // HELPERS
