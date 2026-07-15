@@ -577,28 +577,29 @@ function renderColorPicker(containerId,hiddenId,selected){
 // AUTH
 function withTimeout(p,ms){return Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);}
 
-async function iniciarApp(session){
-  if(ME)return; // evita dupla inicialização
-  ME=session.user;
-  try{await loadMe();}catch(e){console.error('loadMe:',e);}
-  document.getElementById('login-screen').style.display='none';
-  document.getElementById('app').style.display='block';
-  document.querySelector('.main').style.display='flex';
-  renderBoard();
-  loadNotificacoes();
-}
-
 // onAuthStateChange é a fonte principal — cobre login, refresh e restore de sessão
 sb.auth.onAuthStateChange(async(event,session)=>{
   console.log('Auth event:',event);
   if((event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED')&&session){
-    await iniciarApp(session);
+    if(!ME){
+      ME=session.user;
+      showApp();
+      loadMe().catch(e=>console.error('loadMe:',e));
+      renderBoard();
+      loadNotificacoes();
+    }
   } else if(event==='SIGNED_OUT'){
     ME=null;PERFIL=null;
     document.getElementById('login-screen').style.display='flex';
     document.getElementById('app').style.display='none';
   }
 });
+
+function showApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.querySelector('.main').style.display='flex';
+}
 
 document.getElementById('btn-login').addEventListener('click',doLogin);
 document.getElementById('l-senha').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
@@ -617,9 +618,8 @@ async function doLogin(){
       const msgs={'Invalid login credentials':'E-mail ou senha incorretos.'};
       err.textContent=msgs[error.message]||error.message;
       err.style.display='block';
-    } else if(data?.session){
-      await iniciarApp(data.session);
     }
+    // showApp é chamado pelo onAuthStateChange via SIGNED_IN — não precisa chamar aqui
   }catch(e){
     console.error('Login ex:',e);
     err.textContent='Erro: '+e.message;
