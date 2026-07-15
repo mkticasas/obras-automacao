@@ -771,8 +771,9 @@ async function renderBoard(){
       const temAtrib=atribuicoes.length>0;
 
       // acessibilidade: gestor vê tudo; técnico só vê se atribuído ou se obra sem atribuição
+      // gestor acessa tudo; técnico só acessa se estiver atribuído
       const euAtribuido=atribuicoes.some(a=>a.profile_id===ME?.id);
-      const acessivel=PERFIL==='gestor'||!temAtrib||euAtribuido;
+      const acessivel=PERFIL==='gestor'||euAtribuido;
       const minhaObra=euAtribuido||(PERFIL==='gestor');
 
       // cor da faixa: minha cor se minha obra, senão cor neutra
