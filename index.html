@@ -872,27 +872,52 @@ document.querySelectorAll('.nav-item[data-view]').forEach(item=>{
 document.getElementById('btn-sair').addEventListener('click',()=>closeSidebar());
 
 // ─── REALTIME ───
+let realtimeTimer=null;
+function debouncedRenderBoard(){
+  clearTimeout(realtimeTimer);
+  realtimeTimer=setTimeout(()=>renderBoard(),400);
+}
+
 function iniciarRealtime(){
-  sb.channel('obras-realtime')
-    .on('postgres_changes',{event:'*',schema:'public',table:'acomp_obras'},()=>{
-      renderBoard();
-    })
-    .on('postgres_changes',{event:'*',schema:'public',table:'acomp_obra_checklist'},payload=>{
-      // atualiza checkbox específico se modal estiver aberto
-      const item=payload.new||payload.old;
-      if(item&&document.getElementById('ck-'+item.id)){
-        const cb=document.getElementById('ck-'+item.id);
-        const lbl=cb.nextElementSibling;
-        const novoVal=payload.new?.concluido;
-        if(cb.checked!==novoVal){
-          cb.checked=!!novoVal;
-          if(lbl)lbl.classList.toggle('feito',!!novoVal);
-        }
+  sb.channel('obras-realtime',{config:{broadcast:{self:false}}})
+    .on('postgres_changes',
+      {event:'INSERT',schema:'public',table:'acomp_obras'},
+      ()=>debouncedRenderBoard()
+    )
+    .on('postgres_changes',
+      {event:'UPDATE',schema:'public',table:'acomp_obras'},
+      (payload)=>{
+        // se só mudou status_coluna (mover card), re-renderiza
+        debouncedRenderBoard();
       }
-      // atualiza barra do card
-      if(OBRA_ID)atualizarBarraCard(OBRA_ID);
-    })
-    .subscribe();
+    )
+    .on('postgres_changes',
+      {event:'DELETE',schema:'public',table:'acomp_obras'},
+      ()=>debouncedRenderBoard()
+    )
+    .on('postgres_changes',
+      {event:'UPDATE',schema:'public',table:'acomp_obra_checklist'},
+      payload=>{
+        // atualiza checkbox específico se modal estiver aberto
+        const item=payload.new;
+        if(item&&document.getElementById('ck-'+item.id)){
+          const cb=document.getElementById('ck-'+item.id);
+          const lbl=cb.nextElementSibling;
+          if(cb.checked!==!!item.concluido){
+            cb.checked=!!item.concluido;
+            if(lbl)lbl.classList.toggle('feito',!!item.concluido);
+          }
+        }
+        if(OBRA_ID)atualizarBarraCard(OBRA_ID);
+      }
+    )
+    .on('postgres_changes',
+      {event:'*',schema:'public',table:'obra_atribuicoes'},
+      ()=>debouncedRenderBoard()
+    )
+    .subscribe((status)=>{
+      console.log('Realtime:',status);
+    });
 }
 
 
@@ -1032,21 +1057,78 @@ function atualizarPainelVisitas(obras){
   }).join('');
 }
 
-// DRAG & DROP
-function setupDrag(card,obraId,acessivel){
+// ─── DRAG & DROP com reordenação ───
+let dragSrcColuna=null;
+
+function setupDrag(card,obraId,colKey,acessivel){
   if(!acessivel)return;
   card.draggable=true;
-  card.addEventListener('dragstart',e=>{dragObraId=obraId;card.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
-  card.addEventListener('dragend',()=>{card.classList.remove('dragging');document.querySelectorAll('.cards-wrap').forEach(w=>w.classList.remove('drag-over'));});
+  card.dataset.obraId=obraId;
+  card.addEventListener('dragstart',e=>{
+    dragObraId=obraId;dragSrcColuna=colKey;
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed='move';
+  });
+  card.addEventListener('dragend',()=>{
+    card.classList.remove('dragging');
+    document.querySelectorAll('.cards-wrap').forEach(w=>{
+      w.classList.remove('drag-over');
+      w.querySelectorAll('.drop-indicator').forEach(i=>i.remove());
+    });
+  });
 }
+
+function getDragAfterEl(wrap,y){
+  return [...wrap.querySelectorAll('.card:not(.dragging)')].reduce((closest,child)=>{
+    const box=child.getBoundingClientRect();
+    const offset=y-box.top-box.height/2;
+    if(offset<0&&offset>closest.offset)return{offset,element:child};
+    return closest;
+  },{offset:-Infinity}).element||null;
+}
+
 function setupDrop(wrap,colKey){
-  wrap.addEventListener('dragover',e=>{e.preventDefault();wrap.classList.add('drag-over');});
-  wrap.addEventListener('dragleave',e=>{if(!wrap.contains(e.relatedTarget))wrap.classList.remove('drag-over');});
+  wrap.addEventListener('dragover',e=>{
+    e.preventDefault();
+    wrap.classList.add('drag-over');
+    const afterEl=getDragAfterEl(wrap,e.clientY);
+    wrap.querySelectorAll('.drop-indicator').forEach(i=>i.remove());
+    const ind=document.createElement('div');
+    ind.className='drop-indicator';
+    ind.style.cssText='height:3px;background:var(--blue);border-radius:2px;margin:2px 4px;pointer-events:none';
+    if(afterEl)wrap.insertBefore(ind,afterEl);else wrap.appendChild(ind);
+  });
+  wrap.addEventListener('dragleave',e=>{
+    if(!wrap.contains(e.relatedTarget)){
+      wrap.classList.remove('drag-over');
+      wrap.querySelectorAll('.drop-indicator').forEach(i=>i.remove());
+    }
+  });
   wrap.addEventListener('drop',async e=>{
-    e.preventDefault();wrap.classList.remove('drag-over');
+    e.preventDefault();
+    wrap.classList.remove('drag-over');
+    wrap.querySelectorAll('.drop-indicator').forEach(i=>i.remove());
     if(!dragObraId)return;
-    await sb.from('acomp_obras').update({status_coluna:colKey}).eq('id',dragObraId);
-    dragObraId=null;renderBoard();
+
+    const afterEl=getDragAfterEl(wrap,e.clientY);
+    const cards=[...wrap.querySelectorAll('.card[data-obra-id]:not(.dragging)')];
+    const afterIdx=afterEl?cards.indexOf(afterEl):-1;
+    const beforeEl=afterIdx>0?cards[afterIdx-1]:(afterEl?null:cards[cards.length-1]);
+
+    const afterOrdem=afterEl?parseFloat(afterEl.dataset.ordem||0):null;
+    const beforeOrdem=beforeEl&&beforeEl!==afterEl?parseFloat(beforeEl.dataset.ordem||0):null;
+
+    let novaOrdem;
+    if(afterOrdem===null&&beforeOrdem===null)novaOrdem=Date.now();
+    else if(afterOrdem===null)novaOrdem=(beforeOrdem||0)+10000;
+    else if(beforeOrdem===null)novaOrdem=(afterOrdem||0)/2;
+    else novaOrdem=((beforeOrdem||0)+(afterOrdem||0))/2;
+
+    const updates={ordem_kanban:novaOrdem};
+    if(colKey!==dragSrcColuna)updates.status_coluna=colKey;
+    await sb.from('acomp_obras').update(updates).eq('id',dragObraId);
+    dragObraId=null;dragSrcColuna=null;
+    renderBoard();
   });
 }
 
@@ -1054,7 +1136,7 @@ function setupDrop(wrap,colKey){
 async function renderBoard(){
   const board=document.getElementById('board');
   const[{data:obras},{data:prog},{data:atribs}]=await Promise.all([
-    sb.from('acomp_obras').select('*').order('criado_em'),
+    sb.from('acomp_obras').select('*').order('ordem_kanban',{ascending:true,nullsFirst:false}).order('criado_em',{ascending:true}),
     sb.from('acomp_progresso_geral_obra').select('*'),
     sb.from('obra_atribuicoes').select('obra_id,profile_id,profiles(nome,cor)'),
   ]);
@@ -1118,6 +1200,8 @@ async function renderBoard(){
       const card=document.createElement('div');
       card.className='card'+(temAlerta&&acessivel?' tem-alerta':'')+(!acessivel?' inacessivel':'')+(minhaObra&&acessivel?' minha-obra':'');
       card.dataset.id=obra.id;
+      card.dataset.obraId=obra.id;
+      card.dataset.ordem=obra.ordem_kanban||0;
       if(minhaObra&&acessivel)card.style.borderColor=stripColor+'66';
 
       const nomesAtrib=atribuicoes.slice(0,3).map(a=>`<span style="color:${a.cor||'#4ca8d8'};font-size:10px;font-weight:600">${(a.nome||'').split(' ')[0]}</span>`).join('<span style="color:var(--text3);font-size:10px"> + </span>');
@@ -1161,7 +1245,7 @@ async function renderBoard(){
 
       if(acessivel){
         card.addEventListener('click',()=>openDetalhe(obra,atribuicoes));
-        setupDrag(card,obra.id,true);
+        setupDrag(card,obra.id,col.key,true);
       }
       wrap.appendChild(card);
     });
