@@ -128,6 +128,66 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .card-notif-icon svg{width:14px;height:14px;color:var(--orange)}
 .card-lock-icon svg{width:13px;height:13px;color:var(--text3)}
 .card-end{font-size:11px;color:var(--text2);margin-bottom:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* MOBILE */
+.mob-hamburger{display:none;background:none;border:none;color:var(--text2);cursor:pointer;padding:6px;border-radius:var(--radius)}
+.mob-hamburger svg{width:22px;height:22px}
+.mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:190}
+.mob-overlay.open{display:block}
+
+@media(max-width:768px){
+  body{overflow:hidden}
+
+  /* sidebar vira gaveta */
+  .sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:200;width:280px;box-shadow:4px 0 24px rgba(0,0,0,.5)}
+  .sidebar.open{transform:translateX(0)}
+
+  /* main ocupa tudo */
+  .main{margin-left:0}
+
+  /* topbar mobile */
+  .topbar{padding:0 12px;gap:8px;height:52px}
+  .topbar-title{font-size:14px}
+  .topbar-search{display:none}
+  .mob-hamburger{display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+  /* board: colunas com snap */
+  #board{padding:12px;gap:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+  .col{width:calc(100vw - 56px);scroll-snap-align:start;flex-shrink:0}
+  .col-label-vertical{display:none}
+
+  /* cards maiores para toque */
+  .card-body{padding:12px 13px 13px}
+  .card-cliente{font-size:14px}
+  .card-end{font-size:12px}
+
+  /* modal full screen */
+  .overlay{align-items:flex-end;padding:0}
+  .modal,.modal.xl,.modal.lg,.modal.md,.modal.sm{width:100%;max-width:100%;border-radius:16px 16px 0 0;max-height:92vh}
+  .modal-body-row{flex-direction:column;overflow-y:auto}
+  .modal-col-main{padding:14px 16px}
+  .modal-col-side{width:100%;border-left:none;border-top:1px solid var(--border);max-height:220px}
+  .modal-col-side .side-top{padding:12px 14px 0}
+  .modal-col-side .side-hist-wrap{padding:0 14px}
+  .modal-col-side .side-bottom{padding:0 14px 12px}
+
+  /* rodapé modal mobile */
+  .modal-foot{flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .modal-foot select{min-width:120px}
+
+  /* view inner (usuários, calculadora) */
+  .view-inner{padding:14px}
+
+  /* tabela usuários */
+  table{font-size:12px}
+  th,td{padding:8px 10px}
+
+  /* calculadora */
+  .frow{grid-template-columns:1fr}
+
+  /* sidebar aberta: toque fora fecha */
+  .bell-panel{width:calc(100vw - 32px);right:-8px}
+}
 .card-bar{height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
 .card-bar-fill{height:100%;border-radius:2px;transition:width .3s}
 .card-bar-labels{display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:var(--text3)}
@@ -307,6 +367,9 @@ tr:hover td{background:var(--bg3)}
   </div>
 </div>
 
+<!-- OVERLAY MOBILE SIDEBAR -->
+<div class="mob-overlay" id="mob-overlay"></div>
+
 <!-- APP -->
 <div id="app">
   <aside class="sidebar">
@@ -347,6 +410,9 @@ tr:hover td{background:var(--bg3)}
 
   <main class="main">
     <div class="topbar">
+      <button class="mob-hamburger" id="mob-hamburger" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
       <span class="topbar-title" id="topbar-title">Kanban de Obras</span>
       <div class="topbar-search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -753,6 +819,23 @@ document.querySelectorAll('.nav-item[data-view]').forEach(item=>{
     if(v==='usuarios')loadUsuarios();
   });
 });
+
+// ─── MOBILE SIDEBAR ───
+function openSidebar(){
+  document.querySelector('.sidebar').classList.add('open');
+  document.getElementById('mob-overlay').classList.add('open');
+}
+function closeSidebar(){
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('mob-overlay').classList.remove('open');
+}
+document.getElementById('mob-hamburger').addEventListener('click',openSidebar);
+document.getElementById('mob-overlay').addEventListener('click',closeSidebar);
+// fechar sidebar ao navegar
+document.querySelectorAll('.nav-item[data-view]').forEach(item=>{
+  item.addEventListener('click',()=>closeSidebar());
+});
+document.getElementById('btn-sair').addEventListener('click',()=>closeSidebar());
 
 // ─── CALCULADORA ───
 const CALC_TAXAS={
