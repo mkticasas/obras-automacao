@@ -153,7 +153,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
   /* board: colunas com snap */
   #board{padding:12px;gap:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
-  .col{width:calc(100vw - 56px);scroll-snap-align:start;flex-shrink:0}
+  .col{width:calc(100vw - 48px);scroll-snap-align:start;flex-shrink:0}
   .col-label-vertical{display:none}
 
   /* cards maiores para toque */
@@ -166,34 +166,37 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   .modal,.modal.xl,.modal.lg,.modal.md,.modal.sm{
     width:100% !important;max-width:100% !important;
     border-radius:18px 18px 0 0;max-height:95vh;
+    display:flex;flex-direction:column;
   }
 
-  /* modal body vira coluna única */
+  /* modal body: coluna única totalmente scrollável */
   .modal-body-row{
     flex-direction:column !important;
     overflow-y:auto !important;
-    overflow-x:hidden;
+    overflow-x:hidden !important;
+    flex:1 !important;
+    -webkit-overflow-scrolling:touch;
   }
+  /* checklist: sem scroll próprio, expande livremente */
   .modal-col-main{
-    padding:16px;
+    padding:14px 16px !important;
     overflow-y:visible !important;
+    overflow-x:hidden !important;
+    flex:none !important;
     min-height:0;
-    flex:none;
   }
+  /* side panel: sem scroll próprio, expande livremente */
   .modal-col-side{
     width:100% !important;
     border-left:none !important;
-    border-top:1px solid var(--border);
-    max-height:none;
-    flex:none;
+    border-top:1px solid var(--border) !important;
+    flex:none !important;
+    overflow:visible !important;
   }
-  .modal-col-side .side-top{padding:14px 16px 0}
-  .modal-col-side .side-hist-wrap{
-    padding:0 16px;
-    max-height:200px;
-    overflow-y:auto;
-  }
-  .modal-col-side .side-bottom{padding:0 16px 16px}
+  /* internos do side: sem scroll, tudo expande */
+  .side-top{max-height:none !important;overflow:visible !important;padding:12px 16px 0 !important}
+  .side-hist-wrap{overflow:visible !important;padding:0 16px !important;min-height:0 !important;flex:none !important}
+  .side-bottom{padding:0 16px 16px !important}
 
   /* checklist mobile — áreas de toque maiores */
   .ck-row{padding:10px 0;gap:12px}
@@ -254,34 +257,36 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .modal-col-main{flex:1;padding:16px 18px;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
 .modal-col-main::-webkit-scrollbar{width:3px}
 .modal-col-main::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-.modal-col-side{width:220px;flex-shrink:0;border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg3);overflow:hidden}
-.side-top{flex-shrink:0;padding:14px 12px 0;overflow:hidden}
+.modal-col-side{width:210px;flex-shrink:0;border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg3);overflow:hidden}
+.side-top{flex-shrink:0;padding:12px 12px 0;overflow-y:auto;max-height:130px}
+.side-top::-webkit-scrollbar{width:3px}
+.side-top::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .side-hist-wrap{flex:1;overflow-y:auto;padding:0 12px;min-height:0}
 .side-hist-wrap::-webkit-scrollbar{width:3px}
 .side-hist-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-.side-bottom{flex-shrink:0;padding:0 12px 12px;border-top:1px solid var(--border)}
-.side-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:8px}
-.side-member{display:flex;align-items:center;gap:7px;padding:6px 7px;border-radius:6px;border:1px solid transparent;transition:all .15s;margin-bottom:4px}
+.side-bottom{flex-shrink:0;padding:0 12px 10px;border-top:1px solid var(--border)}
+.side-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:6px}
+.side-member{display:flex;align-items:center;gap:6px;padding:5px 5px;border-radius:5px;border:1px solid transparent;transition:all .15s;margin-bottom:2px}
 .side-member.atribuido{border-color:var(--mcor,#4ca8d8);background:rgba(255,255,255,.03)}
-.side-member-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-.side-member-nome{font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side-member-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.side-member-nome{font-size:11px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .side-member-perfil{font-size:10px;color:var(--text3)}
-.side-member-cb{cursor:pointer;width:14px;height:14px;flex-shrink:0}
-.side-divider{border-top:1px solid var(--border);margin:10px 0 8px}
+.side-member-cb{cursor:pointer;width:13px;height:13px;flex-shrink:0}
+.side-divider{border-top:1px solid var(--border);margin:7px 0 6px}
 .side-hist{display:flex;flex-direction:column}
-.side-hist-item{padding:6px 0;border-bottom:1px solid var(--border)}
+.side-hist-item{padding:5px 0;border-bottom:1px solid var(--border)}
 .side-hist-item:last-child{border-bottom:none}
-.side-hist-acao{font-size:11px;line-height:1.4}
-.side-hist-data{font-size:10px;color:var(--text3);margin-top:2px}
-.side-comment-box{display:flex;flex-direction:column;gap:6px;margin-top:4px}
-.side-comment-input{background:var(--bg4);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font-size:12px;outline:none;resize:none;width:100%;font-family:inherit}
+.side-hist-acao{font-size:11px;line-height:1.3}
+.side-hist-data{font-size:10px;color:var(--text3);margin-top:1px}
+.side-comment-box{display:flex;flex-direction:column;gap:5px;margin-top:5px}
+.side-comment-input{background:var(--bg4);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:11px;outline:none;resize:none;width:100%;font-family:inherit}
 .side-comment-input:focus{border-color:var(--blue)}
-.side-comment-send{background:var(--blue2);color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;align-self:flex-end}
-.side-comment-item{padding:6px 0;border-bottom:1px solid var(--border)}
+.side-comment-send{background:var(--blue2);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;align-self:flex-end}
+.side-comment-item{padding:5px 0;border-bottom:1px solid var(--border)}
 .side-comment-item:last-child{border-bottom:none}
-.side-comment-autor{font-size:11px;font-weight:500;margin-bottom:2px}
-.side-comment-texto{font-size:11px;color:var(--text2);line-height:1.4}
-.side-comment-data{font-size:10px;color:var(--text3);margin-top:2px}
+.side-comment-autor{font-size:11px;font-weight:500;margin-bottom:1px}
+.side-comment-texto{font-size:11px;color:var(--text2);line-height:1.3}
+.side-comment-data{font-size:10px;color:var(--text3);margin-top:1px}
 .modal-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
 .flabel{display:block;font-size:11px;color:var(--text2);font-weight:500;margin-bottom:5px}
 .finput,.fselect{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:9px 11px;font-size:13px;outline:none;transition:border-color .2s}
@@ -722,13 +727,13 @@ const COLS=[
   {key:'qua',label:'Quarta',dot:'#4ca8d8'},
   {key:'qui',label:'Quinta',dot:'#4ca8d8'},
   {key:'sex',label:'Sexta',dot:'#4ca8d8'},
+  {key:'revisao',label:'Revisão',dot:'#e0c052',section:''},
   {key:'prox_seg',label:'Prox. Segunda',dot:'#9b7ee8',section:'Próxima semana'},
   {key:'prox_ter',label:'Prox. Terça',dot:'#9b7ee8'},
   {key:'prox_qua',label:'Prox. Quarta',dot:'#9b7ee8'},
   {key:'prox_qui',label:'Prox. Quinta',dot:'#9b7ee8'},
   {key:'prox_sex',label:'Prox. Sexta',dot:'#9b7ee8'},
-  {key:'revisao',label:'Revisão',dot:'#e0c052',section:''},
-  {key:'concluido',label:'Concluído',dot:'#57ac6e'},
+  {key:'concluido',label:'Concluído',dot:'#57ac6e',section:''},
 ];
 const{createClient}=supabase;
 const sb=createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
@@ -770,6 +775,7 @@ sb.auth.onAuthStateChange(async(event,session)=>{
       loadMe().catch(e=>console.error('loadMe:',e));
       renderBoard();
       loadNotificacoes();
+      iniciarRealtime();
     }
   } else if(event==='SIGNED_OUT'){
     ME=null;PERFIL=null;
@@ -865,7 +871,31 @@ document.querySelectorAll('.nav-item[data-view]').forEach(item=>{
 });
 document.getElementById('btn-sair').addEventListener('click',()=>closeSidebar());
 
-// ─── CALCULADORA ───
+// ─── REALTIME ───
+function iniciarRealtime(){
+  sb.channel('obras-realtime')
+    .on('postgres_changes',{event:'*',schema:'public',table:'acomp_obras'},()=>{
+      renderBoard();
+    })
+    .on('postgres_changes',{event:'*',schema:'public',table:'acomp_obra_checklist'},payload=>{
+      // atualiza checkbox específico se modal estiver aberto
+      const item=payload.new||payload.old;
+      if(item&&document.getElementById('ck-'+item.id)){
+        const cb=document.getElementById('ck-'+item.id);
+        const lbl=cb.nextElementSibling;
+        const novoVal=payload.new?.concluido;
+        if(cb.checked!==novoVal){
+          cb.checked=!!novoVal;
+          if(lbl)lbl.classList.toggle('feito',!!novoVal);
+        }
+      }
+      // atualiza barra do card
+      if(OBRA_ID)atualizarBarraCard(OBRA_ID);
+    })
+    .subscribe();
+}
+
+
 const CALC_TAXAS={
   debito:{master:0.99,visa:0.99,elo:1.32,hiper:1.32,outras:1.32},
   1:{master:4.14,visa:2.99,elo:3.65,hiper:3.65,outras:3.65},
