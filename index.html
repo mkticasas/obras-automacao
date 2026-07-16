@@ -1495,12 +1495,12 @@ async function openDetalhe(obra,atribuicoes){
         <option value="qua">Quarta</option><option value="qui">Quinta</option>
         <option value="sex">Sexta</option>
       </optgroup>
+      <option value="revisao">Revisão</option>
       <optgroup label="Próxima semana">
         <option value="prox_seg">Prox. Segunda</option><option value="prox_ter">Prox. Terça</option>
         <option value="prox_qua">Prox. Quarta</option><option value="prox_qui">Prox. Quinta</option>
         <option value="prox_sex">Prox. Sexta</option>
       </optgroup>
-      <option value="revisao">Revisão</option>
     </select>
     <button class="btn-mover" id="btn-mover">Aplicar</button>
     `:''}
@@ -1750,6 +1750,40 @@ document.getElementById('btn-salvar-usuario').addEventListener('click',async()=>
     btn.textContent='Criar Usuário';btn.disabled=false;
   }
 });
+
+// ARRASTAR BOARD
+(function(){
+  const board=document.getElementById('board');
+  let isDown=false,startX=0,scrollLeft=0;
+  board.addEventListener('mousedown',e=>{
+    if(e.target.closest('.card')||e.target.closest('.col-head'))return;
+    isDown=true;board.style.cursor='grabbing';
+    startX=e.pageX-board.offsetLeft;scrollLeft=board.scrollLeft;
+    e.preventDefault();
+  });
+  board.addEventListener('mouseleave',()=>{isDown=false;board.style.cursor='';});
+  board.addEventListener('mouseup',()=>{isDown=false;board.style.cursor='';});
+  board.addEventListener('mousemove',e=>{
+    if(!isDown)return;
+    e.preventDefault();
+    board.scrollLeft=scrollLeft-(e.pageX-board.offsetLeft-startX)*1.5;
+  });
+
+  // auto-scroll ao arrastar card na borda
+  let autoScrollTimer=null;
+  const EDGE=80,SPEED=12;
+  document.addEventListener('dragover',e=>{
+    const rect=board.getBoundingClientRect();
+    clearInterval(autoScrollTimer);
+    if(e.clientX<rect.left+EDGE&&e.clientX>rect.left){
+      autoScrollTimer=setInterval(()=>board.scrollLeft-=SPEED,16);
+    } else if(e.clientX>rect.right-EDGE&&e.clientX<rect.right){
+      autoScrollTimer=setInterval(()=>board.scrollLeft+=SPEED,16);
+    }
+  });
+  document.addEventListener('dragend',()=>clearInterval(autoScrollTimer));
+  document.addEventListener('drop',()=>clearInterval(autoScrollTimer));
+})();
 
 // HELPERS
 function openOv(id){document.getElementById(id).classList.add('open');}
