@@ -1172,12 +1172,37 @@ async function renderBoard(){
       }
     }
     const cards=filtered.filter(o=>o.status_coluna===col.key);
-    const colEl=document.createElement('div');colEl.className='col';
-    colEl.innerHTML=`<div class="col-head"><div class="col-head-l"><div class="col-dot" style="background:${col.dot}"></div><span class="col-name">${col.label}</span></div><span class="col-count">${cards.length}</span></div><div class="cards-wrap"></div>`;
+    const colEl=document.createElement('div');
+    colEl.className='col';
+
+    // coluna concluído começa colapsada
+    const isConcluido=col.key==='concluido';
+    const cardsWrapStyle=isConcluido?'display:none':'';
+
+    colEl.innerHTML=`
+      <div class="col-head" style="${isConcluido?'cursor:pointer':''}" id="head-${col.key}">
+        <div class="col-head-l">
+          <div class="col-dot" style="background:${col.dot}"></div>
+          <span class="col-name">${col.label}</span>
+          ${isConcluido?'<span style="font-size:10px;color:var(--text3);margin-left:4px">▾</span>':''}
+        </div>
+        <span class="col-count">${cards.length}</span>
+      </div>
+      <div class="cards-wrap" id="cw-${col.key}" style="${cardsWrapStyle}"></div>
+    `;
     board.appendChild(colEl);
+
+    if(isConcluido){
+      colEl.querySelector('.col-head').addEventListener('click',()=>{
+        const wrap=colEl.querySelector('.cards-wrap');
+        const arrow=colEl.querySelector('.col-head span:last-of-type');
+        const aberto=wrap.style.display!=='none';
+        wrap.style.display=aberto?'none':'flex';
+        if(arrow)arrow.textContent=aberto?'▾':'▴';
+      });
+    }
     const wrap=colEl.querySelector('.cards-wrap');
     setupDrop(wrap,col.key);
-
     if(!cards.length){wrap.innerHTML=`<div class="card-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg><span>Vazio</span></div>`;return;}
 
     cards.forEach((obra,oi)=>{
