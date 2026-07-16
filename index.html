@@ -1418,6 +1418,46 @@ async function openDetalhe(obra,atribuicoes){
         <span class="etapa-chev aberto">▾</span>
       </div>`;
 
+    // botão marcar tudo
+    const btnMarcar=document.createElement('button');
+    btnMarcar.style.cssText='background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;padding:2px 6px;border-radius:4px;margin-top:5px;display:block';
+    btnMarcar.textContent= done===total ? '✓ Tudo marcado' : '☐ Marcar tudo';
+    btnMarcar.disabled = done===total;
+    btnMarcar.addEventListener('click',async(e)=>{
+      e.stopPropagation();
+      btnMarcar.disabled=true;btnMarcar.textContent='Salvando...';
+      const desmarcados=items.filter(i=>!i.concluido);
+      await Promise.all(desmarcados.map(item=>
+        sb.from('acomp_obra_checklist').update({concluido:true,concluido_em:new Date().toISOString()}).eq('id',item.id)
+      ));
+      // registra no histórico
+      await Promise.all(desmarcados.map(item=>
+        sb.from('checklist_historico').insert({
+          obra_id:obra.id,etapa_id:etapa.id,obra_checklist_id:item.id,
+          profile_id:ME.id,profile_nome:document.getElementById('sb-nome').textContent,
+          profile_cor:ME_COR,acao:'marcado',item_nome:item.acomp_checklist_template?.item||'—'
+        })
+      ));
+      // atualiza visual
+      list.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+        cb.checked=true;
+        if(cb.nextElementSibling)cb.nextElementSibling.classList.add('feito');
+      });
+      document.getElementById('eb-'+etapa.id).style.width='100%';
+      document.getElementById('eb-'+etapa.id).className='etapa-bar-fill ok';
+      document.getElementById('ep-'+etapa.id).textContent=`${total}/${total} — 100%`;
+      btnMarcar.textContent='✓ Tudo marcado';
+      atualizarBarraCard(obra.id);
+      // verifica 100% geral
+      const{data:prog}=await sb.from('acomp_progresso_geral_obra').select('pct_geral').eq('obra_id',obra.id).single();
+      if(prog&&parseInt(prog.pct_geral||0)>=100){
+        await sb.from('acomp_obras').update({status_coluna:'concluido'}).eq('id',obra.id);
+        closeOv('ov-detalhe');toast('🎉 Obra concluída!','ok');renderBoard();
+      } else {
+        toast('Etapa marcada completa','ok');
+      }
+    });
+
     const barWrap=document.createElement('div');barWrap.className='etapa-bar';
     const bf=document.createElement('div');
     bf.className='etapa-bar-fill'+(pct===100?' ok':'');
@@ -1472,7 +1512,9 @@ async function openDetalhe(obra,atribuicoes){
       });
     }
     head.addEventListener('click',()=>{list.classList.toggle('fechado');head.querySelector('.etapa-chev').classList.toggle('aberto');});
-    bloco.appendChild(head);bloco.appendChild(barWrap);bloco.appendChild(list);
+    bloco.appendChild(head);
+    bloco.appendChild(btnMarcar);
+    bloco.appendChild(barWrap);bloco.appendChild(list);
     body.appendChild(bloco);
   });
 
@@ -1508,7 +1550,7 @@ async function openDetalhe(obra,atribuicoes){
   `;
 
   if(obra.proxima_visita) document.getElementById('btn-data-retorno').value=obra.proxima_visita;
-  if(isGestor&&obra.status_coluna!=='concluido')document.getElementById('m-sel').value=obra.status_coluna;
+  if(isGestor)document.getElementById('m-sel').value=obra.status_coluna;
 
   if(isGestor){
     document.getElementById('btn-excluir-obra').onclick=async()=>{
