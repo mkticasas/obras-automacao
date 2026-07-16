@@ -115,7 +115,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .cards-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 
 /* CARD */
-.card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:border-color .18s,transform .1s;position:relative}
+.card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:border-color .18s,transform .1s;position:relative;flex-shrink:0}
 .card:hover:not(.inacessivel){border-color:var(--border2);transform:translateY(-1px)}
 .card.tem-alerta{border-left:3px solid var(--orange)}
 .card.inacessivel{opacity:.35;cursor:not-allowed;filter:grayscale(.6)}
