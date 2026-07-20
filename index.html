@@ -425,6 +425,9 @@ tr:hover td{background:var(--bg3)}
       <div class="nav-item" data-view="calculadora" id="nav-calculadora" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="10" y2="11"/><line x1="13" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="10" y2="15"/><line x1="13" y1="15" x2="16" y2="15"/></svg>Calculadora
       </div>
+      <div class="nav-item" data-view="combustivel" id="nav-combustivel" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 22V8l5-6h8l5 6v14"/><path d="M3 12h18"/><path d="M12 12v10"/><circle cx="17" cy="17" r="2"/><path d="M17 15v-2h2"/></svg>Combustível
+      </div>
     </nav>
     <div class="sb-footer">
       <div class="sb-user" id="btn-meu-perfil" title="Editar meu perfil">
@@ -557,6 +560,91 @@ tr:hover td{background:var(--bg3)}
             <div style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center">Fórmula: valor líquido ÷ (1 − taxa) = valor a cobrar</div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- VIEW COMBUSTÍVEL -->
+    <div class="view" id="view-combustivel">
+      <div class="view-inner" style="max-width:640px">
+
+        <div style="margin-bottom:20px">
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px">Reembolso de Combustível</div>
+          <div style="font-size:12px;color:var(--text2)">Calcula o valor a ressarcir ao técnico com base nos km rodados e no consumo do carro.</div>
+        </div>
+
+        <!-- CONFIG DESGASTE -->
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:20px">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px">Configuração</div>
+          <div class="frow" style="align-items:flex-end;gap:12px">
+            <div style="flex:1">
+              <label class="flabel">Acréscimo por desgaste (R$/km)</label>
+              <input class="finput" type="number" id="comb-desgaste" step="0.01" placeholder="0.30">
+            </div>
+            <button class="btn-save" id="btn-salvar-desgaste" style="padding:9px 16px;margin-bottom:1px">Salvar</button>
+          </div>
+        </div>
+
+        <!-- CARROS DOS TÉCNICOS -->
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:20px">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px">Carros dos Técnicos</div>
+          <div id="comb-carros-lista"></div>
+        </div>
+
+        <!-- CALCULADORA -->
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:14px">Calcular Reembolso</div>
+          <div class="frow" style="margin-bottom:12px">
+            <div>
+              <label class="flabel">Técnico</label>
+              <select class="fselect" id="comb-tecnico">
+                <option value="">Selecione...</option>
+              </select>
+            </div>
+            <div>
+              <label class="flabel">Carro</label>
+              <input class="finput" id="comb-carro-display" readonly placeholder="Cadastre o carro acima" style="color:var(--text2)">
+            </div>
+          </div>
+          <div class="frow" style="margin-bottom:12px">
+            <div>
+              <label class="flabel">KM rodados</label>
+              <input class="finput" type="number" id="comb-km" placeholder="Ex: 85">
+            </div>
+            <div>
+              <label class="flabel">Preço do litro (R$)</label>
+              <input class="finput" type="number" id="comb-preco-litro" step="0.01" placeholder="Ex: 6.29">
+            </div>
+          </div>
+          <div style="text-align:center;margin-bottom:14px">
+            <button id="btn-buscar-eficiencia" style="background:var(--bg3);border:1px solid var(--border);color:var(--blue);padding:8px 16px;border-radius:var(--radius);font-size:12px;cursor:pointer">
+              🔍 Buscar consumo do carro via IA
+            </button>
+            <div id="comb-efic-status" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+          </div>
+
+          <div id="comb-resultado" style="display:none">
+            <div style="border-top:1px solid var(--border);padding-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+              <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px">
+                <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Litros estimados</div>
+                <div style="font-size:20px;font-weight:600" id="comb-litros">—</div>
+              </div>
+              <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px">
+                <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Custo combustível</div>
+                <div style="font-size:20px;font-weight:600" id="comb-custo-comb">—</div>
+              </div>
+              <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px">
+                <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Desgaste do carro</div>
+                <div style="font-size:20px;font-weight:600;color:var(--orange)" id="comb-custo-desg">—</div>
+              </div>
+              <div style="background:rgba(87,172,110,.1);border:1px solid var(--green);border-radius:var(--radius);padding:12px 14px">
+                <div style="font-size:11px;color:var(--green);font-weight:600;margin-bottom:4px">TOTAL A RESSARCIR</div>
+                <div style="font-size:26px;font-weight:700;color:var(--green)" id="comb-total">—</div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);text-align:center" id="comb-formula-txt"></div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -833,6 +921,7 @@ async function loadMe(){
     document.getElementById('nav-usuarios').style.display='flex';
     document.getElementById('btn-novo-usuario').style.display='flex';
     document.getElementById('nav-calculadora').style.display='flex';
+    document.getElementById('nav-combustivel').style.display='flex';
   }
   // re-renderiza o board para aplicar nova cor nos cards
   renderBoard();
@@ -847,10 +936,11 @@ document.querySelectorAll('.nav-item[data-view]').forEach(item=>{
     item.classList.add('active');
     document.querySelectorAll('.view').forEach(vw=>vw.classList.remove('active'));
     document.getElementById('view-'+v).classList.add('active');
-    const titles={kanban:'Kanban de Obras',usuarios:'Usuários',calculadora:'Calculadora de Maquininha'};
+    const titles={kanban:'Kanban de Obras',usuarios:'Usuários',calculadora:'Calculadora de Maquininha',combustivel:'Reembolso de Combustível'};
     document.getElementById('topbar-title').textContent=titles[v]||'';
     document.getElementById('btn-nova-obra').style.display=(v==='kanban'&&PERFIL==='gestor')?'flex':'none';
     if(v==='usuarios')loadUsuarios();
+    if(v==='combustivel')initCombustivel();
   });
 });
 
@@ -920,6 +1010,119 @@ function iniciarRealtime(){
     });
 }
 
+
+// ─── COMBUSTÍVEL ───
+let combDesgaste=0.30;
+let combProfiles=[];
+let combEficMap={};
+
+async function initCombustivel(){
+  const{data:cfg}=await sb.from('sistema_config').select('valor').eq('chave','desgaste_km').single();
+  if(cfg)combDesgaste=parseFloat(cfg.valor)||0.30;
+  document.getElementById('comb-desgaste').value=combDesgaste.toFixed(2);
+  const{data:profs}=await sb.from('profiles').select('id,nome,cor,carro,eficiencia_kmpl').order('nome');
+  combProfiles=profs||[];
+  combProfiles.forEach(p=>{if(p.eficiencia_kmpl)combEficMap[p.id]=p.eficiencia_kmpl;});
+  renderCarrosLista();
+  renderTecnicoSelect();
+}
+
+function renderCarrosLista(){
+  const el=document.getElementById('comb-carros-lista');
+  if(!combProfiles.length){el.innerHTML='<span style="font-size:12px;color:var(--text3)">Nenhum técnico cadastrado.</span>';return;}
+  el.innerHTML=combProfiles.map(p=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="width:8px;height:8px;border-radius:50%;background:${p.cor||'#4ca8d8'};flex-shrink:0"></div>
+      <span style="font-size:13px;flex:1;font-weight:500">${p.nome}</span>
+      <input class="finput" id="carro-${p.id}" value="${p.carro||''}" placeholder="Ex: Honda Civic 2020"
+        style="flex:2;padding:6px 10px;font-size:12px" onchange="salvarCarro('${p.id}',this.value)">
+      <span style="font-size:11px;color:var(--text3);min-width:70px;text-align:right">
+        ${combEficMap[p.id]?combEficMap[p.id]+' km/l':'—'}
+      </span>
+    </div>
+  `).join('');
+}
+
+window.salvarCarro=async(profileId,carro)=>{
+  await sb.from('profiles').update({carro}).eq('id',profileId);
+  const p=combProfiles.find(x=>x.id===profileId);if(p)p.carro=carro;
+  toast('Carro salvo','ok');
+};
+
+function renderTecnicoSelect(){
+  const sel=document.getElementById('comb-tecnico');
+  sel.innerHTML='<option value="">Selecione...</option>'+
+    combProfiles.map(p=>`<option value="${p.id}">${p.nome}${p.carro?' — '+p.carro:''}</option>`).join('');
+}
+
+document.getElementById('comb-tecnico').addEventListener('change',e=>{
+  const p=combProfiles.find(x=>x.id===e.target.value);
+  document.getElementById('comb-carro-display').value=p?.carro||'';
+  document.getElementById('comb-resultado').style.display='none';
+  document.getElementById('comb-efic-status').textContent=
+    combEficMap[p?.id]?`Consumo registrado: ${combEficMap[p.id]} km/l`:'Consumo não registrado — clique em Buscar';
+  calcularCombustivel();
+});
+
+document.getElementById('btn-buscar-eficiencia').addEventListener('click',async()=>{
+  const pid=document.getElementById('comb-tecnico').value;
+  const p=combProfiles.find(x=>x.id===pid);
+  if(!p?.carro){toast('Cadastre o carro do técnico primeiro','err');return;}
+  const btn=document.getElementById('btn-buscar-eficiencia');
+  const status=document.getElementById('comb-efic-status');
+  btn.textContent='Buscando...';btn.disabled=true;status.textContent='Consultando IA...';
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-6',max_tokens:80,
+        messages:[{role:'user',content:`Consumo médio em km/l do ${p.carro} na cidade? Responda APENAS o número decimal, ex: 11.5`}]
+      })
+    });
+    const data=await resp.json();
+    const num=parseFloat((data.content?.[0]?.text||'').match(/[\d.]+/)?.[0]);
+    if(num>4&&num<35){
+      combEficMap[pid]=num;
+      await sb.from('profiles').update({eficiencia_kmpl:num}).eq('id',pid);
+      const prf=combProfiles.find(x=>x.id===pid);if(prf)prf.eficiencia_kmpl=num;
+      status.textContent=`✓ ${num} km/l`;
+      renderCarrosLista();calcularCombustivel();toast('Consumo atualizado!','ok');
+    } else {
+      status.textContent='Não encontrado — insira o consumo manualmente';
+    }
+  }catch(e){status.textContent='Erro ao buscar.';}
+  finally{btn.textContent='🔍 Buscar consumo via IA';btn.disabled=false;}
+});
+
+function calcularCombustivel(){
+  const pid=document.getElementById('comb-tecnico').value;
+  const km=parseFloat(document.getElementById('comb-km').value);
+  const preco=parseFloat(document.getElementById('comb-preco-litro').value);
+  const efic=combEficMap[pid];
+  const res=document.getElementById('comb-resultado');
+  if(!pid||!km||!preco||!efic){res.style.display='none';return;}
+  const litros=km/efic;
+  const custoComb=litros*preco;
+  const custoDesg=km*combDesgaste;
+  const total=custoComb+custoDesg;
+  const brl=v=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2});
+  document.getElementById('comb-litros').textContent=litros.toFixed(2)+' L';
+  document.getElementById('comb-custo-comb').textContent=brl(custoComb);
+  document.getElementById('comb-custo-desg').textContent=brl(custoDesg);
+  document.getElementById('comb-total').textContent=brl(total);
+  document.getElementById('comb-formula-txt').textContent=
+    `${km} km ÷ ${efic} km/l = ${litros.toFixed(2)} L × R$${preco.toFixed(2)}/L + ${km} km × R$${combDesgaste.toFixed(2)}/km desgaste`;
+  res.style.display='block';
+}
+['comb-km','comb-preco-litro'].forEach(id=>document.getElementById(id).addEventListener('input',calcularCombustivel));
+
+document.getElementById('btn-salvar-desgaste').addEventListener('click',async()=>{
+  const val=parseFloat(document.getElementById('comb-desgaste').value);
+  if(!val||val<0){toast('Valor inválido','err');return;}
+  combDesgaste=val;
+  await sb.from('sistema_config').upsert({chave:'desgaste_km',valor:val.toString(),atualizado_em:new Date().toISOString()});
+  toast('Taxa de desgaste salva!','ok');calcularCombustivel();
+});
 
 const CALC_TAXAS={
   debito:{master:0.99,visa:0.99,elo:1.32,hiper:1.32,outras:1.32},
