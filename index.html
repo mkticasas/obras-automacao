@@ -812,6 +812,26 @@ tr:hover td{background:var(--bg3)}
 const SB_URL='https://mqdhavyaeujufhlqdlfg.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xZGhhdnlhZXVqdWZobHFkbGZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NDg0OTUsImV4cCI6MjA5NTUyNDQ5NX0.bmlsVIXzQ1H-R4CEVZJzg_8TXygBsSQ57GOteBKqLHE';
 const CORES=['#4ca8d8','#57ac6e','#ed8036','#9b7ee8','#e05252','#4db8a0','#e0c052','#e07a8a'];
+// ─── DATAS DAS COLUNAS ───
+function getDatasSemanais(){
+  const hoje=new Date();
+  const dow=hoje.getDay();
+  const seg=new Date(hoje);
+  seg.setDate(hoje.getDate()+(dow===0?-6:1-dow));
+  const fmt=d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  const datas={};
+  ['seg','ter','qua','qui','sex'].forEach((k,i)=>{
+    const d=new Date(seg);d.setDate(seg.getDate()+i);
+    datas[k]=fmt(d);
+  });
+  const proxSeg=new Date(seg);proxSeg.setDate(seg.getDate()+7);
+  ['prox_seg','prox_ter','prox_qua','prox_qui','prox_sex'].forEach((k,i)=>{
+    const d=new Date(proxSeg);d.setDate(proxSeg.getDate()+i);
+    datas[k]=fmt(d);
+  });
+  return datas;
+}
+
 const COLS=[
   {key:'em_andamento',label:'Em andamento',dot:'#ed8036',section:'Esta semana'},
   {key:'seg',label:'Segunda',dot:'#4ca8d8'},
@@ -1381,6 +1401,7 @@ async function renderBoard(){
   });
 
   board.innerHTML='';
+  const datasCol=getDatasSemanais();
   let secAtual='';
   COLS.forEach(col=>{    // separador de seção
     if(col.section!==undefined&&col.section!==secAtual){
@@ -1393,13 +1414,17 @@ async function renderBoard(){
       }
     }
     const cards=filtered.filter(o=>o.status_coluna===col.key);
+    const labelComData=datasCol[col.key]
+      ?`${col.label} <span style="color:var(--text3);font-weight:400">${datasCol[col.key]}</span>`
+      :col.label;
+
     const colEl=document.createElement('div');
     colEl.className='col';
     colEl.innerHTML=`
       <div class="col-head">
         <div class="col-head-l">
           <div class="col-dot" style="background:${col.dot}"></div>
-          <span class="col-name">${col.label}</span>
+          <span class="col-name">${labelComData}</span>
         </div>
         <span class="col-count">${cards.length}</span>
       </div>
