@@ -615,11 +615,8 @@ tr:hover td{background:var(--bg3)}
               <input class="finput" type="number" id="comb-preco-litro" step="0.01" placeholder="Ex: 6.29">
             </div>
           </div>
-          <div style="text-align:center;margin-bottom:14px">
-            <button id="btn-buscar-eficiencia" style="background:var(--bg3);border:1px solid var(--border);color:var(--blue);padding:8px 16px;border-radius:var(--radius);font-size:12px;cursor:pointer">
-              🔍 Buscar consumo do carro via IA
-            </button>
-            <div id="comb-efic-status" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+          <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text2)" id="comb-efic-status">
+            Selecione um técnico para ver o consumo registrado.
           </div>
 
           <div id="comb-resultado" style="display:none">
@@ -1034,11 +1031,15 @@ function renderCarrosLista(){
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
       <div style="width:8px;height:8px;border-radius:50%;background:${p.cor||'#4ca8d8'};flex-shrink:0"></div>
       <span style="font-size:13px;flex:1;font-weight:500">${p.nome}</span>
-      <input class="finput" id="carro-${p.id}" value="${p.carro||''}" placeholder="Ex: Honda Civic 2020"
+      <input class="finput" id="carro-${p.id}" value="${p.carro||''}" placeholder="Ex: Honda Fit 2015"
         style="flex:2;padding:6px 10px;font-size:12px" onchange="salvarCarro('${p.id}',this.value)">
-      <span style="font-size:11px;color:var(--text3);min-width:70px;text-align:right">
-        ${combEficMap[p.id]?combEficMap[p.id]+' km/l':'—'}
-      </span>
+      <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+        <input class="finput" id="efic-${p.id}" type="number" step="0.1" min="4" max="30"
+          value="${combEficMap[p.id]||''}" placeholder="km/l"
+          style="width:70px;padding:6px 8px;font-size:12px;text-align:center"
+          onchange="salvarEficiencia('${p.id}',this.value)">
+        <span style="font-size:11px;color:var(--text3)">km/l</span>
+      </div>
     </div>
   `).join('');
 }
@@ -1046,7 +1047,21 @@ function renderCarrosLista(){
 window.salvarCarro=async(profileId,carro)=>{
   await sb.from('profiles').update({carro}).eq('id',profileId);
   const p=combProfiles.find(x=>x.id===profileId);if(p)p.carro=carro;
-  toast('Carro salvo','ok');
+  renderTecnicoSelect();toast('Carro salvo','ok');
+};
+
+window.salvarEficiencia=async(profileId,val)=>{
+  const num=parseFloat(val);
+  if(!num||num<4||num>35){toast('Consumo inválido (deve ser entre 4 e 35 km/l)','err');return;}
+  combEficMap[profileId]=num;
+  await sb.from('profiles').update({eficiencia_kmpl:num}).eq('id',profileId);
+  const p=combProfiles.find(x=>x.id===profileId);if(p)p.eficiencia_kmpl=num;
+  toast('Consumo salvo!','ok');
+  const pid=document.getElementById('comb-tecnico').value;
+  if(pid===profileId){
+    document.getElementById('comb-efic-status').textContent=`✓ Consumo: ${num} km/l`;
+    calcularCombustivel();
+  }
 };
 
 function renderTecnicoSelect(){
@@ -1062,36 +1077,6 @@ document.getElementById('comb-tecnico').addEventListener('change',e=>{
   document.getElementById('comb-efic-status').textContent=
     combEficMap[p?.id]?`Consumo registrado: ${combEficMap[p.id]} km/l`:'Consumo não registrado — clique em Buscar';
   calcularCombustivel();
-});
-
-document.getElementById('btn-buscar-eficiencia').addEventListener('click',async()=>{
-  const pid=document.getElementById('comb-tecnico').value;
-  const p=combProfiles.find(x=>x.id===pid);
-  if(!p?.carro){toast('Cadastre o carro do técnico primeiro','err');return;}
-  const btn=document.getElementById('btn-buscar-eficiencia');
-  const status=document.getElementById('comb-efic-status');
-  btn.textContent='Buscando...';btn.disabled=true;status.textContent='Consultando IA...';
-  try{
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-6',max_tokens:80,
-        messages:[{role:'user',content:`Consumo médio em km/l do ${p.carro} na cidade? Responda APENAS o número decimal, ex: 11.5`}]
-      })
-    });
-    const data=await resp.json();
-    const num=parseFloat((data.content?.[0]?.text||'').match(/[\d.]+/)?.[0]);
-    if(num>4&&num<35){
-      combEficMap[pid]=num;
-      await sb.from('profiles').update({eficiencia_kmpl:num}).eq('id',pid);
-      const prf=combProfiles.find(x=>x.id===pid);if(prf)prf.eficiencia_kmpl=num;
-      status.textContent=`✓ ${num} km/l`;
-      renderCarrosLista();calcularCombustivel();toast('Consumo atualizado!','ok');
-    } else {
-      status.textContent='Não encontrado — insira o consumo manualmente';
-    }
-  }catch(e){status.textContent='Erro ao buscar.';}
-  finally{btn.textContent='🔍 Buscar consumo via IA';btn.disabled=false;}
 });
 
 function calcularCombustivel(){
