@@ -1436,7 +1436,13 @@ async function renderBoard(){
 
       const nomesAtrib=atribuicoes.slice(0,3).map(a=>`<span style="color:${a.cor||'#4ca8d8'};font-size:10px;font-weight:600">${(a.nome||'').split(' ')[0]}</span>`).join('<span style="color:var(--text3);font-size:10px"> + </span>');
 
-      // próxima visita
+      // retorno agendado
+      let retornoBadge='';
+      if(obra.retorno_agendado_col&&col.key!=='concluido'){
+        const colNomes={seg:'Seg',ter:'Ter',qua:'Qua',qui:'Qui',sex:'Sex',
+          prox_seg:'P.Seg',prox_ter:'P.Ter',prox_qua:'P.Qua',prox_qui:'P.Qui',prox_sex:'P.Sex'};
+        retornoBadge=`<div style="margin-top:5px;font-size:10px;color:var(--blue);font-weight:500">🔄 Move → ${colNomes[obra.retorno_agendado_col]||obra.retorno_agendado_col}</div>`;
+      }
       let visitaBadge='';
       if(obra.proxima_visita&&col.key!=='concluido'){
         const hoje=new Date();hoje.setHours(0,0,0,0);
@@ -1465,6 +1471,7 @@ async function renderBoard(){
           <div class="card-bar"><div class="card-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
           <div class="card-bar-labels"><span>Progresso</span><span>${pct}%</span></div>
           ${nomesAtrib?`<div style="margin-top:7px;display:flex;align-items:center;gap:3px;flex-wrap:wrap">${nomesAtrib}</div>`:''}
+          ${retornoBadge}
           ${visitaBadge}
           <div class="card-footer">
             <span class="card-freq">${obra.frequencia_visita}</span>
@@ -1508,7 +1515,7 @@ async function openDetalhe(obra,atribuicoes){
 
   const[{data:etapas},{data:cl},{data:historico},{data:todosProfiles}]=await Promise.all([
     sb.from('acomp_etapas_template').select('*').order('ordem'),
-    sb.from('acomp_obra_checklist').select('id,concluido,concluido_em,acomp_checklist_template(id,item,ordem,etapa_id)').eq('obra_id',obra.id),
+    sb.from('acomp_obra_checklist').select('id,concluido,concluido_em,observacao,acomp_checklist_template(id,item,ordem,etapa_id)').eq('obra_id',obra.id),
     sb.from('checklist_historico').select('*').eq('obra_id',obra.id).order('criado_em',{ascending:false}).limit(30),
     sb.from('profiles').select('id,nome,cor,perfil'),
   ]);
@@ -1705,8 +1712,7 @@ async function openDetalhe(obra,atribuicoes){
         const lbl=document.createElement('label');lbl.className='ck-lbl'+(item.concluido?' feito':'');lbl.htmlFor='ck-'+item.id;
         lbl.textContent=tmpl?.item||'—';
         row.appendChild(cb);row.appendChild(lbl);
-        cb.addEventListener('change',async()=>{
-          const v=cb.checked;
+        cb.addEventListener('change',async()=>{          const v=cb.checked;
           lbl.classList.toggle('feito',v);
           await sb.from('acomp_obra_checklist').update({concluido:v,concluido_em:v?new Date().toISOString():null}).eq('id',item.id);
           await sb.from('checklist_historico').insert({
@@ -1738,7 +1744,39 @@ async function openDetalhe(obra,atribuicoes){
 
           toast(v?'✓ Marcado':'Desmarcado','ok');
         });
+        row.appendChild(cb);row.appendChild(lbl);
+
+        // botão de observação
+        const obsBtn=document.createElement('button');
+        obsBtn.title='Observação';
+        obsBtn.style.cssText='background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;flex-shrink:0;color:'+(item.observacao?'var(--blue)':'var(--text3)');
+        obsBtn.textContent=item.observacao?'📝':'＋';
+        row.appendChild(obsBtn);
+
+        const obsWrap=document.createElement('div');
+        obsWrap.style.cssText='display:none;padding:4px 0 4px 30px';
+        const obsInp=document.createElement('textarea');
+        obsInp.className='side-comment-input';
+        obsInp.rows=2;obsInp.placeholder='Observação sobre este item...';
+        obsInp.value=item.observacao||'';
+        obsInp.style.cssText='font-size:11px;resize:none;width:100%;padding:6px 8px';
+        obsInp.addEventListener('blur',async()=>{
+          const val=obsInp.value.trim();
+          await sb.from('acomp_obra_checklist').update({observacao:val||null}).eq('id',item.id);
+          obsBtn.textContent=val?'📝':'＋';
+          obsBtn.style.color=val?'var(--blue)':'var(--text3)';
+          item.observacao=val||null;
+        });
+        obsWrap.appendChild(obsInp);
+        obsBtn.addEventListener('click',e=>{
+          e.stopPropagation();
+          const aberto=obsWrap.style.display!=='none';
+          obsWrap.style.display=aberto?'none':'block';
+          if(!aberto)setTimeout(()=>obsInp.focus(),50);
+        });
+
         list.appendChild(row);
+        list.appendChild(obsWrap);
       });
     }
     head.addEventListener('click',()=>{list.classList.toggle('fechado');head.querySelector('.etapa-chev').classList.toggle('aberto');});
@@ -1752,12 +1790,34 @@ async function openDetalhe(obra,atribuicoes){
   const freqDias={semanal:7,quinzenal:14,mensal:30};
   const isGestor=PERFIL==='gestor';
 
+  // calcula próxima coluna baseada no dia real de hoje
+  function proximaColuna(atual){
+    const hoje=new Date().getDay(); // 0=dom,1=seg...5=sex,6=sab
+    const diaParaCol={1:'seg',2:'ter',3:'qua',4:'qui',5:'sex'};
+    const colParaDia={seg:1,ter:2,qua:3,qui:4,sex:5};
+    const proxDia={1:2,2:3,3:4,4:5,5:'prox_seg'};
+    const proxProx={prox_seg:'prox_ter',prox_ter:'prox_qua',prox_qua:'prox_qui',prox_qui:'prox_sex',prox_sex:'prox_seg'};
+
+    // se o card está num dia específico, vai pro seguinte
+    if(colParaDia[atual]!==undefined){
+      const next=proxDia[colParaDia[atual]];
+      return typeof next==='number'?diaParaCol[next]:next;
+    }
+    if(proxProx[atual])return proxProx[atual];
+    // se em_andamento ou revisao, vai pro próximo dia útil real
+    if(hoje>=1&&hoje<=4)return diaParaCol[hoje+1];
+    return 'prox_seg'; // sexta ou fds → prox seg
+  }
+
   foot.innerHTML=`
     ${isGestor?`<button class="btn-danger" id="btn-excluir-obra" style="padding:8px 12px;font-size:12px">🗑 Excluir</button>`:''}
     <button class="btn-mover" id="btn-registrar-visita" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:12px">
       📅 Registrar visita
     </button>
-    <input type="date" id="btn-data-retorno" class="finput" title="Data específica de retorno" style="width:140px;padding:7px 10px;font-size:12px" placeholder="Data retorno">
+    <button class="btn-mover" id="btn-retornar-amanha" style="background:var(--bg3);border:1px solid var(--yellow,#e0c052);color:var(--yellow,#e0c052);font-size:12px" title="Registra visita e move para o próximo dia">
+      🔄 Retornar amanhã
+    </button>
+    <input type="date" id="btn-data-retorno" class="finput" title="Data específica de retorno" style="width:140px;padding:7px 10px;font-size:12px">
     <div style="flex:1"></div>
     ${isGestor?`
     <select class="m-sel" id="m-sel" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 11px;font-size:13px;outline:none">
@@ -1794,6 +1854,25 @@ async function openDetalhe(obra,atribuicoes){
       closeOv('ov-detalhe');toast('Alterações aplicadas','ok');renderBoard();
     };
   }
+
+  document.getElementById('btn-retornar-amanha').onclick=async()=>{
+    const hoje=new Date().toISOString().split('T')[0];
+    const amanha=new Date();amanha.setDate(amanha.getDate()+1);
+    const amanhaStr=amanha.toISOString().split('T')[0];
+    const proxCol=proximaColuna(obra.status_coluna);
+    const colNomes={seg:'Segunda',ter:'Terça',qua:'Quarta',qui:'Quinta',sex:'Sexta',
+      prox_seg:'Prox. Segunda',prox_ter:'Prox. Terça',prox_qua:'Prox. Quarta',
+      prox_qui:'Prox. Quinta',prox_sex:'Prox. Sexta'};
+    await sb.from('acomp_obras').update({
+      ultima_visita:hoje,
+      retorno_agendado_col:proxCol,
+      retorno_agendado_data:amanhaStr
+    }).eq('id',OBRA_ID);
+    await sb.from('acomp_visitas').insert({obra_id:OBRA_ID,data_visita:hoje});
+    closeOv('ov-detalhe');
+    toast(`🔄 Retorno agendado para ${colNomes[proxCol]||proxCol} (move à meia-noite)`,'ok');
+    renderBoard();
+  };
 
   document.getElementById('btn-registrar-visita').onclick=async()=>{
     const hoje=new Date().toISOString().split('T')[0];
