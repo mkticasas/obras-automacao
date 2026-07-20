@@ -611,6 +611,13 @@ tr:hover td{background:var(--bg3)}
               <input class="finput" type="number" id="comb-km" placeholder="Ex: 85">
             </div>
             <div>
+              <label class="flabel">Combustível</label>
+              <select class="fselect" id="comb-tipo">
+                <option value="gasolina">⛽ Gasolina</option>
+                <option value="etanol">🌿 Etanol</option>
+              </select>
+            </div>
+            <div>
               <label class="flabel">Preço do litro (R$)</label>
               <input class="finput" type="number" id="comb-preco-litro" step="0.01" placeholder="Ex: 6.29">
             </div>
@@ -1017,9 +1024,11 @@ async function initCombustivel(){
   const{data:cfg}=await sb.from('sistema_config').select('valor').eq('chave','desgaste_km').single();
   if(cfg)combDesgaste=parseFloat(cfg.valor)||0.30;
   document.getElementById('comb-desgaste').value=combDesgaste.toFixed(2);
-  const{data:profs}=await sb.from('profiles').select('id,nome,cor,carro,eficiencia_kmpl').order('nome');
+  const{data:profs}=await sb.from('profiles').select('id,nome,cor,carro,eficiencia_gasolina,eficiencia_etanol').order('nome');
   combProfiles=profs||[];
-  combProfiles.forEach(p=>{if(p.eficiencia_kmpl)combEficMap[p.id]=p.eficiencia_kmpl;});
+  combProfiles.forEach(p=>{
+    combEficMap[p.id]={gasolina:p.eficiencia_gasolina||null,etanol:p.eficiencia_etanol||null};
+  });
   renderCarrosLista();
   renderTecnicoSelect();
 }
@@ -1027,18 +1036,29 @@ async function initCombustivel(){
 function renderCarrosLista(){
   const el=document.getElementById('comb-carros-lista');
   if(!combProfiles.length){el.innerHTML='<span style="font-size:12px;color:var(--text3)">Nenhum técnico cadastrado.</span>';return;}
-  el.innerHTML=combProfiles.map(p=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
-      <div style="width:8px;height:8px;border-radius:50%;background:${p.cor||'#4ca8d8'};flex-shrink:0"></div>
-      <span style="font-size:13px;flex:1;font-weight:500">${p.nome}</span>
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 2fr 80px 80px;gap:8px;padding:4px 0 8px;border-bottom:1px solid var(--border);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">
+      <div>Técnico</div><div>Carro</div><div style="text-align:center">Gasolina</div><div style="text-align:center">Etanol</div>
+    </div>
+  `+combProfiles.map(p=>`
+    <div style="display:grid;grid-template-columns:1fr 2fr 80px 80px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:7px">
+        <div style="width:7px;height:7px;border-radius:50%;background:${p.cor||'#4ca8d8'};flex-shrink:0"></div>
+        <span style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nome.split(' ')[0]}</span>
+      </div>
       <input class="finput" id="carro-${p.id}" value="${p.carro||''}" placeholder="Ex: Honda Fit 2015"
-        style="flex:2;padding:6px 10px;font-size:12px" onchange="salvarCarro('${p.id}',this.value)">
-      <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-        <input class="finput" id="efic-${p.id}" type="number" step="0.1" min="4" max="30"
-          value="${combEficMap[p.id]||''}" placeholder="km/l"
-          style="width:70px;padding:6px 8px;font-size:12px;text-align:center"
-          onchange="salvarEficiencia('${p.id}',this.value)">
-        <span style="font-size:11px;color:var(--text3)">km/l</span>
+        style="padding:6px 8px;font-size:12px" onchange="salvarCarro('${p.id}',this.value)">
+      <div style="display:flex;align-items:center;gap:3px">
+        <input class="finput" id="efic-gas-${p.id}" type="number" step="0.1" min="4" max="30"
+          value="${combEficMap[p.id]?.gasolina||''}" placeholder="—"
+          style="width:100%;padding:6px 6px;font-size:12px;text-align:center"
+          onchange="salvarEficiencia('${p.id}','gasolina',this.value)">
+      </div>
+      <div style="display:flex;align-items:center;gap:3px">
+        <input class="finput" id="efic-eta-${p.id}" type="number" step="0.1" min="4" max="30"
+          value="${combEficMap[p.id]?.etanol||''}" placeholder="—"
+          style="width:100%;padding:6px 6px;font-size:12px;text-align:center"
+          onchange="salvarEficiencia('${p.id}','etanol',this.value)">
       </div>
     </div>
   `).join('');
@@ -1050,18 +1070,18 @@ window.salvarCarro=async(profileId,carro)=>{
   renderTecnicoSelect();toast('Carro salvo','ok');
 };
 
-window.salvarEficiencia=async(profileId,val)=>{
+window.salvarEficiencia=async(profileId,tipo,val)=>{
   const num=parseFloat(val);
-  if(!num||num<4||num>35){toast('Consumo inválido (deve ser entre 4 e 35 km/l)','err');return;}
-  combEficMap[profileId]=num;
-  await sb.from('profiles').update({eficiencia_kmpl:num}).eq('id',profileId);
-  const p=combProfiles.find(x=>x.id===profileId);if(p)p.eficiencia_kmpl=num;
+  if(!num||num<4||num>35){toast('Consumo inválido (4–35 km/l)','err');return;}
+  if(!combEficMap[profileId])combEficMap[profileId]={gasolina:null,etanol:null};
+  combEficMap[profileId][tipo]=num;
+  const upd=tipo==='gasolina'?{eficiencia_gasolina:num}:{eficiencia_etanol:num};
+  await sb.from('profiles').update(upd).eq('id',profileId);
+  const p=combProfiles.find(x=>x.id===profileId);
+  if(p){if(tipo==='gasolina')p.eficiencia_gasolina=num;else p.eficiencia_etanol=num;}
   toast('Consumo salvo!','ok');
   const pid=document.getElementById('comb-tecnico').value;
-  if(pid===profileId){
-    document.getElementById('comb-efic-status').textContent=`✓ Consumo: ${num} km/l`;
-    calcularCombustivel();
-  }
+  if(pid===profileId)calcularCombustivel();
 };
 
 function renderTecnicoSelect(){
@@ -1074,16 +1094,29 @@ document.getElementById('comb-tecnico').addEventListener('change',e=>{
   const p=combProfiles.find(x=>x.id===e.target.value);
   document.getElementById('comb-carro-display').value=p?.carro||'';
   document.getElementById('comb-resultado').style.display='none';
-  document.getElementById('comb-efic-status').textContent=
-    combEficMap[p?.id]?`Consumo registrado: ${combEficMap[p.id]} km/l`:'Consumo não registrado — clique em Buscar';
+  atualizarStatusEfic();
   calcularCombustivel();
 });
+document.getElementById('comb-tipo').addEventListener('change',()=>{atualizarStatusEfic();calcularCombustivel();});
+
+function atualizarStatusEfic(){
+  const pid=document.getElementById('comb-tecnico').value;
+  const tipo=document.getElementById('comb-tipo').value;
+  const efic=combEficMap[pid]?.[tipo];
+  const status=document.getElementById('comb-efic-status');
+  if(!pid){status.textContent='Selecione um técnico.';return;}
+  status.textContent=efic
+    ?`✓ Consumo (${tipo}): ${efic} km/l`
+    :`⚠ Consumo de ${tipo} não cadastrado — preencha a tabela acima.`;
+  status.style.color=efic?'var(--green)':'var(--orange)';
+}
 
 function calcularCombustivel(){
   const pid=document.getElementById('comb-tecnico').value;
+  const tipo=document.getElementById('comb-tipo').value;
   const km=parseFloat(document.getElementById('comb-km').value);
   const preco=parseFloat(document.getElementById('comb-preco-litro').value);
-  const efic=combEficMap[pid];
+  const efic=combEficMap[pid]?.[tipo];
   const res=document.getElementById('comb-resultado');
   if(!pid||!km||!preco||!efic){res.style.display='none';return;}
   const litros=km/efic;
@@ -1096,7 +1129,7 @@ function calcularCombustivel(){
   document.getElementById('comb-custo-desg').textContent=brl(custoDesg);
   document.getElementById('comb-total').textContent=brl(total);
   document.getElementById('comb-formula-txt').textContent=
-    `${km} km ÷ ${efic} km/l = ${litros.toFixed(2)} L × R$${preco.toFixed(2)}/L + ${km} km × R$${combDesgaste.toFixed(2)}/km desgaste`;
+    `${km} km ÷ ${efic} km/l (${tipo}) = ${litros.toFixed(2)} L × R$${preco.toFixed(2)}/L + ${km} km × R$${combDesgaste.toFixed(2)}/km desgaste`;
   res.style.display='block';
 }
 ['comb-km','comb-preco-litro'].forEach(id=>document.getElementById(id).addEventListener('input',calcularCombustivel));
