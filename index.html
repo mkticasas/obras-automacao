@@ -1376,16 +1376,25 @@ function setupDrop(wrap,colKey){
 // BOARD
 async function renderBoard(){
   const board=document.getElementById('board');
-  const[{data:obras},{data:prog},{data:atribs}]=await Promise.all([
+  const hoje=new Date().toISOString().split('T')[0];
+  const[{data:obras},{data:prog},{data:atribs},{data:conclusoesDia}]=await Promise.all([
     sb.from('acomp_obras').select('*').order('ordem_kanban',{ascending:true,nullsFirst:false}).order('criado_em',{ascending:true}),
     sb.from('acomp_progresso_geral_obra').select('*'),
     sb.from('obra_atribuicoes').select('obra_id,profile_id,profiles(nome,cor)'),
+    sb.from('obra_conclusao_dia').select('obra_id,profile_id,profile_nome,profile_cor').eq('data_conclusao',hoje),
   ]);
   const alertSet=new Set(ALERTAS_DATA.filter(a=>a.status==='pendente').map(a=>a.obra_id));
   const progMap={};(prog||[]).forEach(r=>progMap[r.obra_id]=parseInt(r.pct_geral||0));
 
   // atualiza painel de visitas
   atualizarPainelVisitas(obras||[]);
+
+  // mapa conclusões do dia por obra
+  const conclusaoMap={};
+  (conclusoesDia||[]).forEach(c=>{
+    if(!conclusaoMap[c.obra_id])conclusaoMap[c.obra_id]=[];
+    conclusaoMap[c.obra_id].push(c);
+  });
 
   // mapa de atribuições por obra
   const atribMap={};
@@ -1461,7 +1470,12 @@ async function renderBoard(){
 
       const nomesAtrib=atribuicoes.slice(0,3).map(a=>`<span style="color:${a.cor||'#4ca8d8'};font-size:10px;font-weight:600">${(a.nome||'').split(' ')[0]}</span>`).join('<span style="color:var(--text3);font-size:10px"> + </span>');
 
-      // retorno agendado
+      // conclusões do dia
+      const conclusoesObra=conclusaoMap[obra.id]||[];
+      const euConclui=conclusoesObra.some(c=>c.profile_id===ME?.id);
+      const conclusoesBadge=conclusoesObra.length
+        ?conclusoesObra.map(c=>`<span style="font-size:10px;font-weight:600;color:${c.profile_cor||'#4ade80'}">✓ ${(c.profile_nome||'').split(' ')[0]}</span>`).join(' ')
+        :'';
       let retornoBadge='';
       if(obra.retorno_agendado_col&&col.key!=='concluido'){
         const colNomes={seg:'Seg',ter:'Ter',qua:'Qua',qui:'Qui',sex:'Sex',
@@ -1496,6 +1510,8 @@ async function renderBoard(){
           <div class="card-bar"><div class="card-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
           <div class="card-bar-labels"><span>Progresso</span><span>${pct}%</span></div>
           ${nomesAtrib?`<div style="margin-top:7px;display:flex;align-items:center;gap:3px;flex-wrap:wrap">${nomesAtrib}</div>`:''}
+          ${conclusoesBadge?`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${conclusoesBadge}</div>`:''}
+          ${PERFIL==='tecnico'&&euAtribuido?`<button class="btn-concluir-dia" data-id="${obra.id}" style="margin-top:8px;width:100%;padding:8px;border-radius:var(--radius);border:1px solid ${euConclui?'#4ade80':'var(--border)'};background:${euConclui?'rgba(74,222,128,.12)':'var(--bg4)'};color:${euConclui?'#4ade80':'var(--text2)'};font-size:12px;font-weight:600;cursor:pointer">${euConclui?'✓ Concluído por hoje':'Marcar como concluído hoje'}</button>`:''}
           ${retornoBadge}
           ${visitaBadge}
           <div class="card-footer">
@@ -2127,6 +2143,35 @@ document.getElementById('btn-salvar-usuario').addEventListener('click',async()=>
     btn.textContent='Criar Usuário';btn.disabled=false;
   }
 });
+
+// HANDLERS CONCLUIR DIA — registra no final de cada renderBoard
+const _origRenderBoard=renderBoard;
+renderBoard=async function(){
+  await _origRenderBoard.apply(this,arguments);
+  const hojeStr=new Date().toISOString().split('T')[0];
+  document.querySelectorAll('.btn-concluir-dia').forEach(btn=>{
+    btn.addEventListener('click',async e=>{
+      e.stopPropagation();
+      const obraId=btn.dataset.id;
+      const jaConclui=btn.textContent.includes('✓');
+      if(jaConclui){
+        await sb.from('obra_conclusao_dia').delete()
+          .eq('obra_id',obraId).eq('profile_id',ME.id).eq('data_conclusao',hojeStr);
+        await sb.from('obra_atribuicoes').insert({obra_id:obraId,profile_id:ME.id});
+        toast('Conclusão desfeita','ok');
+      } else {
+        await sb.from('obra_conclusao_dia').upsert({
+          obra_id:obraId,profile_id:ME.id,
+          profile_nome:document.getElementById('sb-nome').textContent,
+          profile_cor:ME_COR,data_conclusao:hojeStr
+        });
+        await sb.from('obra_atribuicoes').delete().eq('obra_id',obraId).eq('profile_id',ME.id);
+        toast('✓ Marcado como concluído hoje!','ok');
+      }
+      renderBoard();
+    });
+  });
+};
 
 // ARRASTAR BOARD
 (function(){
