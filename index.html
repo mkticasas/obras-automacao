@@ -1451,28 +1451,18 @@ async function renderBoard(){
       const diasRev=obra.revisao_desde?Math.floor((Date.now()-new Date(obra.revisao_desde))/86400000):0;
       const atribuicoes=atribMap[obra.id]||[];
       const temAtrib=atribuicoes.length>0;
-
-      // acessibilidade: gestor vê tudo; técnico só vê se atribuído ou se obra sem atribuição
-      // gestor acessa tudo; técnico só acessa se estiver atribuído
       const euAtribuido=atribuicoes.some(a=>a.profile_id===ME?.id);
-      const acessivel=PERFIL==='gestor'||euAtribuido;
-      const minhaObra=euAtribuido||(PERFIL==='gestor');
-
-      // cor da faixa: minha cor se minha obra, senão cor neutra
-      const stripColor=euAtribuido?ME_COR:(PERFIL==='gestor'&&temAtrib?atribuicoes[0].cor:'#2a2c2f');
-
-      const card=document.createElement('div');
-      card.className='card'+(temAlerta&&acessivel?' tem-alerta':'')+(!acessivel?' inacessivel':'')+(minhaObra&&acessivel?' minha-obra':'');
-      card.dataset.id=obra.id;
-      card.dataset.obraId=obra.id;
-      card.dataset.ordem=obra.ordem_kanban||0;
-      if(minhaObra&&acessivel)card.style.borderColor=stripColor+'66';
-
-      const nomesAtrib=atribuicoes.slice(0,3).map(a=>`<span style="color:${a.cor||'#4ca8d8'};font-size:10px;font-weight:600">${(a.nome||'').split(' ')[0]}</span>`).join('<span style="color:var(--text3);font-size:10px"> + </span>');
 
       // conclusões do dia
       const conclusoesObra=conclusaoMap[obra.id]||[];
       const euConclui=conclusoesObra.some(c=>c.profile_id===ME?.id);
+
+      // técnico que concluiu hoje fica sem acesso (card cinza)
+      const acessivel=PERFIL==='gestor'||(euAtribuido&&!euConclui);
+      const minhaObra=euAtribuido||(PERFIL==='gestor');
+
+      const stripColor=euAtribuido&&!euConclui?ME_COR:(PERFIL==='gestor'&&temAtrib?atribuicoes[0].cor:'#2a2c2f');
+
       const conclusoesBadge=conclusoesObra.length
         ?conclusoesObra.map(c=>`<span style="font-size:10px;font-weight:600;color:${c.profile_cor||'#4ade80'}">✓ ${(c.profile_nome||'').split(' ')[0]}</span>`).join(' ')
         :'';
@@ -1495,6 +1485,15 @@ async function renderBoard(){
         else{cor='var(--text3)';txt=`📅 ${dtFmt}`;}
         visitaBadge=`<div style="margin-top:6px;font-size:10px;font-weight:500;color:${cor}">${txt}</div>`;
       }
+
+      const nomesAtrib=atribuicoes.slice(0,3).map(a=>`<span style="color:${a.cor||'#4ca8d8'};font-size:10px;font-weight:600">${(a.nome||'').split(' ')[0]}</span>`).join('<span style="color:var(--text3);font-size:10px"> + </span>');
+
+      const card=document.createElement('div');
+      card.className='card'+(temAlerta&&acessivel?' tem-alerta':'')+(!acessivel?' inacessivel':'')+(minhaObra&&acessivel?' minha-obra':'');
+      card.dataset.id=obra.id;
+      card.dataset.obraId=obra.id;
+      card.dataset.ordem=obra.ordem_kanban||0;
+      if(minhaObra&&acessivel)card.style.borderColor=stripColor+'66';
 
       card.innerHTML=`
         <div class="card-strip" style="background:${stripColor}"></div>
