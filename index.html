@@ -77,7 +77,24 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .bell-btn:hover{border-color:var(--border2)}
 .bell-btn svg{width:17px;height:17px;color:var(--text2)}
 .bell-badge{position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:17px;height:17px;border-radius:20px;display:none;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--bg2)}
-.bell-panel{position:absolute;right:0;top:40px;width:320px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:300;display:none;max-height:400px;overflow:hidden;flex-direction:column}
+@keyframes sweep-conclusao{
+  0%{left:-100%;opacity:0}
+  15%{opacity:1}
+  85%{opacity:1}
+  100%{left:100%;opacity:0}
+}
+.card-sweep{
+  position:absolute;inset:0;z-index:10;overflow:hidden;border-radius:var(--radius);
+  pointer-events:none;
+}
+.card-sweep-bar{
+  position:absolute;top:0;bottom:0;width:100%;
+  background:linear-gradient(90deg,transparent,rgba(74,222,128,.9) 20%,rgba(74,222,128,.9) 80%,transparent);
+  display:flex;align-items:center;justify-content:center;
+  animation:sweep-conclusao 1.4s ease forwards;
+  white-space:nowrap;font-size:13px;font-weight:700;color:#fff;letter-spacing:.3px;
+}
+.card.tem-conclusao{opacity:.45;filter:grayscale(.5)}width:320px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:300;display:none;max-height:400px;overflow:hidden;flex-direction:column}
 .bell-panel.open{display:flex}
 .bell-panel-head{padding:12px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .bell-panel-head span{font-size:13px;font-weight:600}
@@ -1328,6 +1345,17 @@ function getDragAfterEl(wrap,y){
   },{offset:-Infinity}).element||null;
 }
 
+function getDataParaCol(colKey){
+  const today=new Date();
+  const dow=today.getDay();
+  const monday=new Date(today);
+  monday.setDate(today.getDate()+(dow===0?-6:1-dow));
+  const colIdx={seg:0,ter:1,qua:2,qui:3,sex:4,prox_seg:7,prox_ter:8,prox_qua:9,prox_qui:10,prox_sex:11};
+  if(colIdx[colKey]===undefined)return null;
+  const d=new Date(monday);d.setDate(monday.getDate()+colIdx[colKey]);
+  return d.toISOString().split('T')[0];
+}
+
 function setupDrop(wrap,colKey){
   wrap.addEventListener('dragover',e=>{
     e.preventDefault();
@@ -1352,21 +1380,27 @@ function setupDrop(wrap,colKey){
     if(!dragObraId)return;
 
     const afterEl=getDragAfterEl(wrap,e.clientY);
-    const cards=[...wrap.querySelectorAll('.card[data-obra-id]:not(.dragging)')];
+    const cards=[...wrap.querySelectorAll('.card[data-obra-id]')].filter(c=>c.dataset.obraId!==dragObraId);
     const afterIdx=afterEl?cards.indexOf(afterEl):-1;
-    const beforeEl=afterIdx>0?cards[afterIdx-1]:(afterEl?null:cards[cards.length-1]);
+    const beforeEl=afterIdx>0?cards[afterIdx-1]:(afterEl===null?cards[cards.length-1]:null);
 
     const afterOrdem=afterEl?parseFloat(afterEl.dataset.ordem||0):null;
-    const beforeOrdem=beforeEl&&beforeEl!==afterEl?parseFloat(beforeEl.dataset.ordem||0):null;
+    const beforeOrdem=beforeEl?parseFloat(beforeEl.dataset.ordem||0):null;
 
     let novaOrdem;
-    if(afterOrdem===null&&beforeOrdem===null)novaOrdem=Date.now();
-    else if(afterOrdem===null)novaOrdem=(beforeOrdem||0)+10000;
-    else if(beforeOrdem===null)novaOrdem=(afterOrdem||0)/2;
+    if(afterOrdem===null&&beforeOrdem===null)novaOrdem=1000;
+    else if(afterOrdem===null)novaOrdem=(beforeOrdem||0)+1000;
+    else if(beforeOrdem===null)novaOrdem=Math.max((afterOrdem||0)-1000,1);
     else novaOrdem=((beforeOrdem||0)+(afterOrdem||0))/2;
 
     const updates={ordem_kanban:novaOrdem};
-    if(colKey!==dragSrcColuna)updates.status_coluna=colKey;
+    if(colKey!==dragSrcColuna){
+      updates.status_coluna=colKey;
+      // atualiza proxima_visita para o dia real da coluna destino
+      const dataCol=getDataParaCol(colKey);
+      if(dataCol)updates.proxima_visita=dataCol;
+    }
+
     await sb.from('acomp_obras').update(updates).eq('id',dragObraId);
     dragObraId=null;dragSrcColuna=null;
     renderBoard();
@@ -1489,7 +1523,8 @@ async function renderBoard(){
       const nomesAtrib=atribuicoes.slice(0,3).map(a=>`<span style="color:${a.cor||'#4ca8d8'};font-size:10px;font-weight:600">${(a.nome||'').split(' ')[0]}</span>`).join('<span style="color:var(--text3);font-size:10px"> + </span>');
 
       const card=document.createElement('div');
-      card.className='card'+(temAlerta&&acessivel?' tem-alerta':'')+(!acessivel?' inacessivel':'')+(minhaObra&&acessivel?' minha-obra':'');
+      const temConclusao=conclusoesObra.length>0;
+      card.className='card'+(temAlerta&&acessivel?' tem-alerta':'')+(!acessivel?' inacessivel':'')+(minhaObra&&acessivel?' minha-obra':'')+(temConclusao?' tem-conclusao':'');
       card.dataset.id=obra.id;
       card.dataset.obraId=obra.id;
       card.dataset.ordem=obra.ordem_kanban||0;
@@ -2152,22 +2187,27 @@ renderBoard=async function(){
     btn.addEventListener('click',async e=>{
       e.stopPropagation();
       const obraId=btn.dataset.id;
-      const jaConclui=btn.textContent.includes('✓');
-      if(jaConclui){
-        await sb.from('obra_conclusao_dia').delete()
-          .eq('obra_id',obraId).eq('profile_id',ME.id).eq('data_conclusao',hojeStr);
-        await sb.from('obra_atribuicoes').insert({obra_id:obraId,profile_id:ME.id});
-        toast('Conclusão desfeita','ok');
-      } else {
-        await sb.from('obra_conclusao_dia').upsert({
-          obra_id:obraId,profile_id:ME.id,
-          profile_nome:document.getElementById('sb-nome').textContent,
-          profile_cor:ME_COR,data_conclusao:hojeStr
-        });
-        await sb.from('obra_atribuicoes').delete().eq('obra_id',obraId).eq('profile_id',ME.id);
-        toast('✓ Marcado como concluído hoje!','ok');
-      }
-      renderBoard();
+      const card=btn.closest('.card');
+      const nomeTecnico=document.getElementById('sb-nome').textContent.split(' ')[0];
+
+      // animação de sweep verde
+      const sweep=document.createElement('div');sweep.className='card-sweep';
+      const bar=document.createElement('div');bar.className='card-sweep-bar';
+      bar.textContent=`✓ ${nomeTecnico} concluiu`;
+      sweep.appendChild(bar);
+      if(card)card.appendChild(sweep);
+
+      // salva no banco durante animação
+      await sb.from('obra_conclusao_dia').upsert({
+        obra_id:obraId,profile_id:ME.id,
+        profile_nome:document.getElementById('sb-nome').textContent,
+        profile_cor:ME_COR,data_conclusao:hojeStr
+      });
+      await sb.from('obra_atribuicoes').delete().eq('obra_id',obraId).eq('profile_id',ME.id);
+      toast(`✓ ${nomeTecnico} concluiu!`,'ok');
+
+      // re-renderiza após animação terminar
+      setTimeout(()=>renderBoard(),1500);
     });
   });
 };
