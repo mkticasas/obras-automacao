@@ -1410,6 +1410,14 @@ function setupDrop(wrap,colKey){
 // BOARD
 async function renderBoard(){
   const board=document.getElementById('board');
+
+  // salva scroll de cada coluna antes de re-renderizar
+  const scrollSalvo={};
+  board.querySelectorAll('.cards-wrap').forEach(w=>{
+    const col=w.closest('.col');
+    const nome=col?.querySelector('.col-name')?.textContent;
+    if(nome)scrollSalvo[nome]=w.scrollTop;
+  });
   const hoje=new Date().toISOString().split('T')[0];
   const[{data:obras},{data:prog},{data:atribs},{data:conclusoesDia}]=await Promise.all([
     sb.from('acomp_obras').select('*').order('ordem_kanban',{ascending:true,nullsFirst:false}).order('criado_em',{ascending:true}),
@@ -1565,8 +1573,7 @@ async function renderBoard(){
 
   // handlers dos botões concluir-dia (once:true evita acúmulo de listeners)
   const hojeStrBoard=new Date().toISOString().split('T')[0];
-  document.querySelectorAll('.btn-concluir-dia').forEach(btn=>{
-    btn.addEventListener('click',async e=>{
+  document.querySelectorAll('.btn-concluir-dia').forEach(btn=>{    btn.addEventListener('click',async e=>{
       e.stopPropagation();
       const obraId=btn.dataset.id;
       const cardEl=btn.closest('.card');
@@ -1585,6 +1592,13 @@ async function renderBoard(){
       toast(`✓ ${nomeTecnico} concluiu!`,'ok');
       setTimeout(()=>renderBoard(),1500);
     },{once:true});
+  });
+
+  // restaura scroll de cada coluna
+  board.querySelectorAll('.cards-wrap').forEach(w=>{
+    const col=w.closest('.col');
+    const nome=col?.querySelector('.col-name')?.textContent;
+    if(nome&&scrollSalvo[nome]!==undefined)w.scrollTop=scrollSalvo[nome];
   });
 }
 
