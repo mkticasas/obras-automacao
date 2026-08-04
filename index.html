@@ -1541,9 +1541,10 @@ async function renderBoard(){
           prox_seg:'P.Seg',prox_ter:'P.Ter',prox_qua:'P.Qua',prox_qui:'P.Qui',prox_sex:'P.Sex'};
         retornoBadge=`<div style="margin-top:5px;font-size:10px;color:var(--blue);font-weight:500">🔄 Move → ${colNomes[obra.retorno_agendado_col]||obra.retorno_agendado_col}</div>`;
       }
-      // próxima visita com badge de atrasada
+      // badge de próxima visita — só em colunas sem dia fixo
+      const colsComDia=['seg','ter','qua','qui','sex','prox_seg','prox_ter','prox_qua','prox_qui','prox_sex'];
       let visitaBadge='';
-      if(obra.proxima_visita&&col.key!=='concluido'){
+      if(obra.proxima_visita&&col.key!=='concluido'&&!colsComDia.includes(col.key)){
         const hojeVis=new Date();hojeVis.setHours(0,0,0,0);
         const prox=new Date(obra.proxima_visita+'T00:00:00');
         const diff=Math.ceil((prox-hojeVis)/(1000*60*60*24));
@@ -1554,6 +1555,10 @@ async function renderBoard(){
         else if(diff<=2){cor='var(--yellow)';txt=`📅 Em ${diff}d — ${dtFmt}`;}
         else{cor='var(--text3)';txt=`📅 ${dtFmt}`;}
         visitaBadge=`<div style="margin-top:6px;font-size:10px;font-weight:500;color:${cor}">${txt}</div>`;
+      } else if(obra.proxima_visita&&colsComDia.includes(col.key)){
+        // só mostra a data, sem badge de atrasada
+        const dtFmt=new Date(obra.proxima_visita+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+        visitaBadge=`<div style="margin-top:6px;font-size:10px;color:var(--text3)">📅 ${dtFmt}</div>`;
       }
 
       const nomesAtrib=atribuicoes.slice(0,3).map(a=>`<span style="color:${a.cor||'#4ca8d8'};font-size:10px;font-weight:600">${(a.nome||'').split(' ')[0]}</span>`).join('<span style="color:var(--text3);font-size:10px"> + </span>');
