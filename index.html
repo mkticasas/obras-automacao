@@ -1446,13 +1446,13 @@ async function renderBoard(){
   board.innerHTML='';
   const datasCol=getDatasSemanais();
   let secAtual='';
-  COLS.forEach(col=>{    // separador de seção
+  COLS.forEach(col=>{
+    // separador de seção — linha fina vertical entre grupos
     if(col.section!==undefined&&col.section!==secAtual){
       secAtual=col.section;
       if(col.section){
         const sep=document.createElement('div');
-        sep.style.cssText='flex-shrink:0;display:flex;align-items:center;writing-mode:vertical-rl;text-orientation:mixed;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding:0 4px;user-select:none';
-        sep.textContent=col.section;
+        sep.style.cssText='flex-shrink:0;width:2px;background:var(--border);border-radius:2px;margin:8px 4px;opacity:.5';
         board.appendChild(sep);
       }
     }
@@ -1561,6 +1561,30 @@ async function renderBoard(){
       }
       wrap.appendChild(card);
     });
+  });
+
+  // handlers dos botões concluir-dia (once:true evita acúmulo de listeners)
+  const hojeStrBoard=new Date().toISOString().split('T')[0];
+  document.querySelectorAll('.btn-concluir-dia').forEach(btn=>{
+    btn.addEventListener('click',async e=>{
+      e.stopPropagation();
+      const obraId=btn.dataset.id;
+      const cardEl=btn.closest('.card');
+      const nomeTecnico=document.getElementById('sb-nome').textContent.split(' ')[0];
+      const sweep=document.createElement('div');sweep.className='card-sweep';
+      const bar=document.createElement('div');bar.className='card-sweep-bar';
+      bar.textContent=`✓ ${nomeTecnico} concluiu`;
+      sweep.appendChild(bar);
+      if(cardEl)cardEl.appendChild(sweep);
+      await sb.from('obra_conclusao_dia').upsert({
+        obra_id:obraId,profile_id:ME.id,
+        profile_nome:document.getElementById('sb-nome').textContent,
+        profile_cor:ME_COR,data_conclusao:hojeStrBoard
+      });
+      await sb.from('obra_atribuicoes').delete().eq('obra_id',obraId).eq('profile_id',ME.id);
+      toast(`✓ ${nomeTecnico} concluiu!`,'ok');
+      setTimeout(()=>renderBoard(),1500);
+    },{once:true});
   });
 }
 
@@ -2177,40 +2201,6 @@ document.getElementById('btn-salvar-usuario').addEventListener('click',async()=>
     btn.textContent='Criar Usuário';btn.disabled=false;
   }
 });
-
-// HANDLERS CONCLUIR DIA — registra no final de cada renderBoard
-const _origRenderBoard=renderBoard;
-renderBoard=async function(){
-  await _origRenderBoard.apply(this,arguments);
-  const hojeStr=new Date().toISOString().split('T')[0];
-  document.querySelectorAll('.btn-concluir-dia').forEach(btn=>{
-    btn.addEventListener('click',async e=>{
-      e.stopPropagation();
-      const obraId=btn.dataset.id;
-      const card=btn.closest('.card');
-      const nomeTecnico=document.getElementById('sb-nome').textContent.split(' ')[0];
-
-      // animação de sweep verde
-      const sweep=document.createElement('div');sweep.className='card-sweep';
-      const bar=document.createElement('div');bar.className='card-sweep-bar';
-      bar.textContent=`✓ ${nomeTecnico} concluiu`;
-      sweep.appendChild(bar);
-      if(card)card.appendChild(sweep);
-
-      // salva no banco durante animação
-      await sb.from('obra_conclusao_dia').upsert({
-        obra_id:obraId,profile_id:ME.id,
-        profile_nome:document.getElementById('sb-nome').textContent,
-        profile_cor:ME_COR,data_conclusao:hojeStr
-      });
-      await sb.from('obra_atribuicoes').delete().eq('obra_id',obraId).eq('profile_id',ME.id);
-      toast(`✓ ${nomeTecnico} concluiu!`,'ok');
-
-      // re-renderiza após animação terminar
-      setTimeout(()=>renderBoard(),1500);
-    });
-  });
-};
 
 // ARRASTAR BOARD
 (function(){
