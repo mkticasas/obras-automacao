@@ -94,7 +94,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   animation:sweep-conclusao 1.4s ease forwards;
   white-space:nowrap;font-size:13px;font-weight:700;color:#fff;letter-spacing:.3px;
 }
-.card.tem-conclusao{opacity:.45;filter:grayscale(.5)}width:320px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:300;display:none;max-height:400px;overflow:hidden;flex-direction:column}
+.card.tem-conclusao{opacity:.45;filter:grayscale(.5)}
+.bell-panel{position:fixed;right:16px;top:52px;width:320px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:400;display:none;max-height:420px;overflow:hidden;flex-direction:column}
 .bell-panel.open{display:flex}
 .bell-panel-head{padding:12px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .bell-panel-head span{font-size:13px;font-weight:600}
@@ -1270,15 +1271,21 @@ document.getElementById('visita-btn').addEventListener('click',e=>{
   document.getElementById('visita-panel').classList.toggle('open');
   document.getElementById('bell-panel').classList.remove('open');
 });
+// fechar ambos os painéis ao clicar fora
 document.addEventListener('click',e=>{
-  if(!document.getElementById('visita-wrap').contains(e.target))
-    document.getElementById('visita-panel').classList.remove('open');
+  if(!document.getElementById('visita-wrap')?.contains(e.target))
+    document.getElementById('visita-panel')?.classList.remove('open');
+  if(!document.getElementById('bell-wrap')?.contains(e.target))
+    document.getElementById('bell-panel')?.classList.remove('open');
 });
 
 function atualizarPainelVisitas(obras){
   const hoje=new Date();hoje.setHours(0,0,0,0);
+  // ignora obras em dias específicos (já estão agendadas) e concluídas
+  const diasColuna=['seg','ter','qua','qui','sex','prox_seg','prox_ter','prox_qua','prox_qui','prox_sex'];
   const urgentes=obras.filter(o=>{
     if(!o.proxima_visita||o.status_coluna==='concluido')return false;
+    if(diasColuna.includes(o.status_coluna))return false; // já na agenda da semana
     const prox=new Date(o.proxima_visita+'T00:00:00');
     return prox<=new Date(hoje.getTime()+2*86400000);
   }).sort((a,b)=>new Date(a.proxima_visita)-new Date(b.proxima_visita));
@@ -1337,12 +1344,14 @@ function setupDrag(card,obraId,colKey,acessivel){
 }
 
 function getDragAfterEl(wrap,y){
-  return [...wrap.querySelectorAll('.card:not(.dragging)')].reduce((closest,child)=>{
-    const box=child.getBoundingClientRect();
-    const offset=y-box.top-box.height/2;
-    if(offset<0&&offset>closest.offset)return{offset,element:child};
-    return closest;
-  },{offset:-Infinity}).element||null;
+  return [...wrap.querySelectorAll('.card[data-obra-id]')]
+    .filter(c=>c.dataset.obraId!==dragObraId)
+    .reduce((closest,child)=>{
+      const box=child.getBoundingClientRect();
+      const offset=y-box.top-box.height/2;
+      if(offset<0&&offset>closest.offset)return{offset,element:child};
+      return closest;
+    },{offset:-Infinity}).element||null;
 }
 
 function getDataParaCol(colKey){
@@ -1379,29 +1388,43 @@ function setupDrop(wrap,colKey){
     wrap.querySelectorAll('.drop-indicator').forEach(i=>i.remove());
     if(!dragObraId)return;
 
+    // pega todos os cards da coluna destino exceto o que está sendo arrastado
     const afterEl=getDragAfterEl(wrap,e.clientY);
-    const cards=[...wrap.querySelectorAll('.card[data-obra-id]')].filter(c=>c.dataset.obraId!==dragObraId);
-    const afterIdx=afterEl?cards.indexOf(afterEl):-1;
-    const beforeEl=afterIdx>0?cards[afterIdx-1]:(afterEl===null?cards[cards.length-1]:null);
+    const cardsDestino=[...wrap.querySelectorAll('.card[data-obra-id]')]
+      .filter(c=>c.dataset.obraId!==dragObraId);
 
-    const afterOrdem=afterEl?parseFloat(afterEl.dataset.ordem||0):null;
-    const beforeOrdem=beforeEl?parseFloat(beforeEl.dataset.ordem||0):null;
+    // determina índice de inserção
+    const insertIdx=afterEl
+      ? cardsDestino.indexOf(afterEl)
+      : cardsDestino.length;
 
-    let novaOrdem;
-    if(afterOrdem===null&&beforeOrdem===null)novaOrdem=1000;
-    else if(afterOrdem===null)novaOrdem=(beforeOrdem||0)+1000;
-    else if(beforeOrdem===null)novaOrdem=Math.max((afterOrdem||0)-1000,1);
-    else novaOrdem=((beforeOrdem||0)+(afterOrdem||0))/2;
+    // renumera todos da coluna com espaço para o novo
+    const ordensAtuais=cardsDestino.map((c,i)=>({id:c.dataset.obraId,ordem:(i+1)*1000}));
+    ordensAtuais.splice(insertIdx,0,{id:dragObraId,ordem:insertIdx*1000+500});
 
-    const updates={ordem_kanban:novaOrdem};
+    // recalcula com espaçamento limpo
+    const updates_batch=ordensAtuais.map((o,i)=>({id:o.id,ordem:(i+1)*1000}));
+
+    // monta update do card arrastado
+    const novaOrdem=(insertIdx+1)*1000-(insertIdx<cardsDestino.length?500:0)+insertIdx*500;
+    const updates={ordem_kanban:(insertIdx+1)*1000};
     if(colKey!==dragSrcColuna){
       updates.status_coluna=colKey;
-      // atualiza proxima_visita para o dia real da coluna destino
       const dataCol=getDataParaCol(colKey);
       if(dataCol)updates.proxima_visita=dataCol;
     }
 
+    // atualiza o card arrastado
     await sb.from('acomp_obras').update(updates).eq('id',dragObraId);
+
+    // reordena os outros para garantir posição correta
+    await Promise.all(
+      cardsDestino.map((c,i)=>{
+        const novoI=i<insertIdx?i:i+1;
+        return sb.from('acomp_obras').update({ordem_kanban:(novoI+1)*1000}).eq('id',c.dataset.obraId);
+      })
+    );
+
     dragObraId=null;dragSrcColuna=null;
     renderBoard();
   });
@@ -1410,6 +1433,10 @@ function setupDrop(wrap,colKey){
 // BOARD
 async function renderBoard(){
   const board=document.getElementById('board');
+
+  // fecha painéis abertos ao re-renderizar
+  document.getElementById('bell-panel')?.classList.remove('open');
+  document.getElementById('visita-panel')?.classList.remove('open');
 
   // salva scroll de cada coluna antes de re-renderizar
   const scrollSalvo={};
@@ -1516,16 +1543,14 @@ async function renderBoard(){
       }
       let visitaBadge='';
       if(obra.proxima_visita&&col.key!=='concluido'){
-        const hoje=new Date();hoje.setHours(0,0,0,0);
+        const hojeVis=new Date();hojeVis.setHours(0,0,0,0);
         const prox=new Date(obra.proxima_visita+'T00:00:00');
-        const diff=Math.ceil((prox-hoje)/(1000*60*60*24));
+        const diff=Math.ceil((prox-hojeVis)/(1000*60*60*24));
         const dtFmt=prox.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
-        let cor,txt;
-        if(diff<0){cor='var(--red)';txt=`⚠ Atrasada ${Math.abs(diff)}d — ${dtFmt}`;}
-        else if(diff===0){cor='var(--orange)';txt=`⚠ Visitar hoje`;}
-        else if(diff<=2){cor='var(--yellow)';txt=`📅 Em ${diff}d — ${dtFmt}`;}
-        else{cor='var(--text3)';txt=`📅 ${dtFmt}`;}
-        visitaBadge=`<div style="margin-top:6px;font-size:10px;font-weight:500;color:${cor}">${txt}</div>`;
+        if(diff>=0){
+          let cor=diff<=2?'var(--orange)':'var(--text3)';
+          visitaBadge=`<div style="margin-top:6px;font-size:10px;font-weight:500;color:${cor}">📅 ${dtFmt}</div>`;
+        }
       }
 
       const nomesAtrib=atribuicoes.slice(0,3).map(a=>`<span style="color:${a.cor||'#4ca8d8'};font-size:10px;font-weight:600">${(a.nome||'').split(' ')[0]}</span>`).join('<span style="color:var(--text3);font-size:10px"> + </span>');
