@@ -153,8 +153,29 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:190}
 .mob-overlay.open{display:block}
 
+/* BOTÃO DE ÁUDIO IA */
+.btn-mic{display:none;width:56px;height:56px;border-radius:50%;background:var(--blue2);border:none;color:#fff;font-size:22px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);transition:all .2s;flex-shrink:0}
+.btn-mic.gravando{background:var(--red);animation:pulse-mic 1s infinite}
+@keyframes pulse-mic{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 12px rgba(239,68,68,0)}}
+.ia-preview{background:var(--bg3);border:1px solid var(--green);border-radius:var(--radius);padding:12px 14px;margin:10px 0;font-size:12px;line-height:1.6}
+.ia-preview-item{display:flex;align-items:center;gap:8px;padding:3px 0}
+.ia-preview-item.ok{color:#4ade80}
+.ia-preview-item.skip{color:var(--text3)}
+
 @media(max-width:768px){
-  body{overflow:hidden}
+  /* cards compactos no mobile */
+  .card-end{display:none}
+  .card-bar-labels{display:none}
+  .card-freq{display:none}
+  .card-body{padding:10px 12px 10px}
+
+  /* botão IA visível no mobile */
+  .btn-mic{display:flex;align-items:center;justify-content:center}
+
+  /* modal mobile: cabeçalho menor */
+  .modal-head{padding:12px 14px 10px}
+  .modal-foot button{font-size:12px;padding:10px 8px}
+}
 
   /* sidebar vira gaveta */
   .sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:200;width:280px;box-shadow:4px 0 24px rgba(0,0,0,.5)}
@@ -824,6 +845,23 @@ tr:hover td{background:var(--bg3)}
   </div>
 </div>
 
+<!-- MODAL IA AUDIO -->
+<div class="overlay" id="ov-ia-audio">
+  <div class="modal sm">
+    <div class="modal-head">
+      <div><h3>🤖 IA processou seu áudio</h3></div>
+      <button class="m-x" onclick="closeOv('ov-ia-audio')">×</button>
+    </div>
+    <div class="modal-body" id="ia-preview-body" style="padding:16px 18px">
+      <div class="loading-txt">Processando...</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeOv('ov-ia-audio')">Cancelar</button>
+      <button class="btn-save" id="btn-ia-confirmar">✓ Aplicar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -870,8 +908,8 @@ const sb=createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:
 window.sb=sb;
 
 let ME=null,PERFIL=null,ME_COR='#4ca8d8',OBRA_ID=null,OBRA_ATUAL=null,SEARCH='',ALERTAS_DATA=[];
-let dragObraId=null;
-let criandoUsuario=false; // bloqueia onAuthStateChange durante criação
+let dragObraId=null,dragSrcColuna=null,criandoUsuario=false;
+const GEMINI_KEY='AIzaSyAQ.Ab8RN6Ljazj77OijzfTvfPoI-vXxDf6wad2tJ-TayVPqyLN03g';let criandoUsuario=false; // bloqueia onAuthStateChange durante criação
 
 // COLOR PICKER
 function renderColorPicker(containerId,hiddenId,selected){
@@ -1178,6 +1216,116 @@ document.getElementById('btn-salvar-desgaste').addEventListener('click',async()=
   combDesgaste=val;
   await sb.from('sistema_config').upsert({chave:'desgaste_km',valor:val.toString(),atualizado_em:new Date().toISOString()});
   toast('Taxa de desgaste salva!','ok');calcularCombustivel();
+});
+
+});
+
+// ─── IA POR VOZ (Gemini) ───
+let mediaRec=null,audioChunks=[],iaResultado=null;
+
+function iniciarMicrofone(obra,etapas,cl){
+  const btn=document.getElementById('btn-mic');
+  const status=document.getElementById('mic-status');
+  if(!btn)return;
+  btn.addEventListener('click',async()=>{
+    if(mediaRec&&mediaRec.state==='recording'){
+      mediaRec.stop();btn.classList.remove('gravando');btn.textContent='🎙️';
+      status.textContent='Processando com IA...';return;
+    }
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      audioChunks=[];
+      mediaRec=new MediaRecorder(stream);
+      mediaRec.ondataavailable=e=>audioChunks.push(e.data);
+      mediaRec.onstop=async()=>{
+        stream.getTracks().forEach(t=>t.stop());
+        const blob=new Blob(audioChunks,{type:'audio/webm'});
+        await processarAudioGemini(blob,obra,etapas,cl);
+      };
+      mediaRec.start();
+      btn.classList.add('gravando');btn.textContent='⏹️';
+      status.textContent='🔴 Gravando... toque para parar';
+      setTimeout(()=>{if(mediaRec?.state==='recording')mediaRec.stop();},60000);
+    }catch(e){status.textContent='Erro ao acessar microfone';}
+  });
+}
+
+async function processarAudioGemini(blob,obra,etapas,cl){
+  const status=document.getElementById('mic-status');
+  status.textContent='Enviando para IA...';
+  const itensTexto=[];
+  (etapas||[]).forEach(etapa=>{
+    const items=(cl||[]).filter(c=>c.acomp_checklist_template?.etapa_id===etapa.id)
+      .sort((a,b)=>(a.acomp_checklist_template?.ordem||0)-(b.acomp_checklist_template?.ordem||0));
+    items.forEach(item=>itensTexto.push({
+      id:item.id,etapa:etapa.nome,
+      item:item.acomp_checklist_template?.item||'—',concluido:item.concluido
+    }));
+  });
+  const base64=await new Promise(res=>{
+    const reader=new FileReader();
+    reader.onloadend=()=>res(reader.result.split(',')[1]);
+    reader.readAsDataURL(blob);
+  });
+  const prompt=`Você é assistente de uma empresa de automação residencial iCasas.
+Técnico gravou áudio sobre a obra "${obra.cliente}".
+Checklist atual:
+${itensTexto.map(i=>`- [${i.concluido?'✓':'○'}] ${i.etapa}: ${i.item} (id:${i.id})`).join('\n')}
+Responda APENAS JSON sem markdown:
+{"itens_marcar":["id1"],"itens_desmarcar":[],"data_retorno":"YYYY-MM-DD ou null","observacao":"resumo","registrar_visita":true}
+Hoje é ${new Date().toLocaleDateString('pt-BR')}.`;
+  try{
+    const resp=await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+      {method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({contents:[{parts:[{text:prompt},{inline_data:{mime_type:'audio/webm;codecs=opus',data:base64}}]}],generationConfig:{temperature:0.1}})}
+    );
+    const data=await resp.json();
+    const txt=data.candidates?.[0]?.content?.parts?.[0]?.text||'{}';
+    iaResultado={resultado:JSON.parse(txt.replace(/```json|```/g,'').trim()),itensTexto,obra};
+    mostrarPreviewIA(iaResultado);
+    status.textContent='✓ IA pronta — confirme as ações';
+  }catch(e){status.textContent='Erro na IA: '+e.message;console.error(e);}
+}
+
+function mostrarPreviewIA({resultado:r,itensTexto}){
+  const body=document.getElementById('ia-preview-body');
+  let html=r.observacao?`<div style="margin-bottom:10px;font-size:12px;color:var(--text2);font-style:italic">"${r.observacao}"</div>`:'';
+  if(r.itens_marcar?.length){
+    html+='<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Marcar como concluído</div>';
+    r.itens_marcar.forEach(id=>{const i=itensTexto.find(x=>x.id===id);if(i)html+=`<div class="ia-preview-item ok">✓ ${i.etapa}: ${i.item}</div>`;});
+  }
+  if(r.itens_desmarcar?.length){
+    html+='<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);margin:8px 0 5px">Desmarcar</div>';
+    r.itens_desmarcar.forEach(id=>{const i=itensTexto.find(x=>x.id===id);if(i)html+=`<div class="ia-preview-item" style="color:var(--red)">✗ ${i.etapa}: ${i.item}</div>`;});
+  }
+  if(r.data_retorno)html+=`<div style="margin-top:10px;padding:8px 10px;background:var(--bg4);border-radius:6px;font-size:12px">📅 Retorno: <strong>${new Date(r.data_retorno+'T00:00:00').toLocaleDateString('pt-BR')}</strong></div>`;
+  if(r.registrar_visita)html+=`<div style="margin-top:6px;font-size:11px;color:var(--green)">✓ Visita de hoje registrada</div>`;
+  body.innerHTML=html||'<div style="color:var(--text3)">IA não identificou ações.</div>';
+  openOv('ov-ia-audio');
+}
+
+document.getElementById('btn-ia-confirmar').addEventListener('click',async()=>{
+  if(!iaResultado)return;
+  const{resultado:r,obra}=iaResultado;
+  const btn=document.getElementById('btn-ia-confirmar');
+  btn.textContent='Aplicando...';btn.disabled=true;
+  const now=new Date().toISOString(),hoje=now.split('T')[0];
+  const nome=document.getElementById('sb-nome').textContent;
+  await Promise.all((r.itens_marcar||[]).map(id=>sb.from('acomp_obra_checklist').update({concluido:true,concluido_em:now}).eq('id',id)));
+  await Promise.all((r.itens_desmarcar||[]).map(id=>sb.from('acomp_obra_checklist').update({concluido:false,concluido_em:null}).eq('id',id)));
+  const hist=[...(r.itens_marcar||[]).map(id=>({obra_id:obra.id,obra_checklist_id:id,profile_id:ME.id,profile_nome:nome,profile_cor:ME_COR,acao:'marcado'})),
+              ...(r.itens_desmarcar||[]).map(id=>({obra_id:obra.id,obra_checklist_id:id,profile_id:ME.id,profile_nome:nome,profile_cor:ME_COR,acao:'desmarcado'}))];
+  if(hist.length)await sb.from('checklist_historico').insert(hist);
+  if(r.registrar_visita){
+    await sb.from('acomp_visitas').insert({obra_id:obra.id,data_visita:hoje});
+    const upd={ultima_visita:hoje};if(r.data_retorno)upd.proxima_visita=r.data_retorno;
+    await sb.from('acomp_obras').update(upd).eq('id',obra.id);
+  }
+  if(r.observacao)await sb.from('obra_comentarios').insert({obra_id:obra.id,profile_id:ME.id,profile_nome:nome,profile_cor:ME_COR,comentario:`🤖 IA: ${r.observacao}`});
+  closeOv('ov-ia-audio');closeOv('ov-detalhe');
+  toast('✓ IA aplicou tudo com sucesso!','ok');
+  renderBoard();btn.textContent='✓ Aplicar';btn.disabled=false;iaResultado=null;
 });
 
 const CALC_TAXAS={
@@ -1692,7 +1840,20 @@ async function openDetalhe(obra,atribuicoes){
   const foot=document.getElementById('d-foot');
   body.innerHTML='';side.innerHTML='';foot.innerHTML='';
 
-  // ── PAINEL LATERAL: EQUIPE (fixo topo) + HISTÓRICO (scroll) + COMENTÁRIOS (fixo baixo) ──
+  // botão IA microfone (mobile)
+  const micBar=document.createElement('div');
+  micBar.style.cssText='display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg3)';
+  micBar.innerHTML=`
+    <button class="btn-mic" id="btn-mic" title="Gravar áudio — IA marca o checklist automaticamente">🎙️</button>
+    <div style="flex:1">
+      <div style="font-size:12px;font-weight:600;margin-bottom:2px">IA por voz</div>
+      <div id="mic-status" style="font-size:11px;color:var(--text3)">Pressione e fale o que foi feito na obra</div>
+    </div>
+  `;
+  document.getElementById('d-body-wrap').insertBefore(micBar, document.getElementById('d-body'));
+
+  // inicializa gravação
+  iniciarMicrofone(obra, etapas, cl);
   const sideTop=document.createElement('div');sideTop.className='side-top';
   const sideHistWrap=document.createElement('div');sideHistWrap.className='side-hist-wrap';
   const sideBottom=document.createElement('div');sideBottom.className='side-bottom';
