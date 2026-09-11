@@ -163,21 +163,16 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .ia-preview-item.skip{color:var(--text3)}
 
 @media(max-width:768px){
-  /* cards compactos no mobile */
+  /* cards compactos */
   .card-end{display:none}
   .card-bar-labels{display:none}
   .card-freq{display:none}
   .card-body{padding:10px 12px 10px}
-
   /* botão IA visível no mobile */
   .btn-mic{display:flex;align-items:center;justify-content:center}
-
-  /* modal mobile: cabeçalho menor */
+  /* modal mobile */
   .modal-head{padding:12px 14px 10px}
   .modal-foot button{font-size:12px;padding:10px 8px}
-}
-
-  /* sidebar vira gaveta */
   .sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:200;width:280px;box-shadow:4px 0 24px rgba(0,0,0,.5)}
   .sidebar.open{transform:translateX(0)}
 
