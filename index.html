@@ -1017,9 +1017,21 @@ async function doLogin(){
 }
 
 async function loadMe(){
-  const{data,error}=await sb.from('profiles').select('*').eq('id',ME.id).single();
-  if(error)console.error('profiles:',error);
-  if(!data)return;
+  const{data,error}=await sb.from('profiles').select('*').eq('id',ME.id).maybeSingle();
+  if(error)console.error('profiles erro:',error);
+  if(!data){
+    // perfil não existe ainda — cria um básico
+    const email=ME.email||'';
+    const nome=email.split('@')[0]||'Usuário';
+    await sb.from('profiles').upsert({id:ME.id,nome,perfil:'tecnico',cor:'#4ca8d8',email});
+    const{data:d2}=await sb.from('profiles').select('*').eq('id',ME.id).maybeSingle();
+    if(!d2)return;
+    return carregarPerfil(d2);
+  }
+  return carregarPerfil(data);
+}
+
+function carregarPerfil(data){
   PERFIL=data.perfil;ME_COR=data.cor||'#4ca8d8';
   const ini=data.nome.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase();
   document.getElementById('sb-avatar').textContent=ini;
@@ -1033,7 +1045,6 @@ async function loadMe(){
     document.getElementById('nav-calculadora').style.display='flex';
     document.getElementById('nav-combustivel').style.display='flex';
   }
-  // re-renderiza o board para aplicar nova cor nos cards
   renderBoard();
 }
 document.getElementById('btn-sair').addEventListener('click',()=>sb.auth.signOut());
