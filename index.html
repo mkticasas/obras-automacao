@@ -245,7 +245,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   .side-member-nome{font-size:13px !important}
   .side-member-cb{width:18px !important;height:18px !important}
 
-  /* IA mic bar */
+  /* botão IA visível no mobile */
+  #mic-bar{display:flex !important}
   .btn-mic{display:flex;align-items:center;justify-content:center;width:48px;height:48px;font-size:20px}
 
   /* checklist toque fácil */
@@ -776,6 +777,14 @@ tr:hover td{background:var(--bg3)}
         <button class="m-x" onclick="closeOv('ov-detalhe')">×</button>
       </div>
     </div>
+    <!-- Barra de IA por voz (visível sempre, mic aparece só no mobile via CSS) -->
+    <div id="mic-bar" style="display:none;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg3);flex-shrink:0">
+      <button class="btn-mic" id="btn-mic" title="Gravar áudio — IA marca o checklist automaticamente">🎙️</button>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;margin-bottom:2px">IA por voz</div>
+        <div id="mic-status" style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Pressione e fale o que foi feito na obra</div>
+      </div>
+    </div>
     <div class="modal-body-row" id="d-body-wrap">
       <div class="modal-col-main" id="d-body"></div>
       <div class="modal-col-side" id="d-side"></div>
@@ -1246,9 +1255,12 @@ function iniciarMicrofone(obra,etapas,cl){
   const btn=document.getElementById('btn-mic');
   const status=document.getElementById('mic-status');
   if(!btn)return;
-  btn.addEventListener('click',async()=>{
+  // remove listener anterior clonando o botão
+  const novo=btn.cloneNode(true);
+  btn.parentNode.replaceChild(novo,btn);
+  novo.addEventListener('click',async()=>{
     if(mediaRec&&mediaRec.state==='recording'){
-      mediaRec.stop();btn.classList.remove('gravando');btn.textContent='🎙️';
+      mediaRec.stop();novo.classList.remove('gravando');novo.textContent='🎙️';
       status.textContent='Processando com IA...';return;
     }
     try{
@@ -1262,7 +1274,7 @@ function iniciarMicrofone(obra,etapas,cl){
         await processarAudioGemini(blob,obra,etapas,cl);
       };
       mediaRec.start();
-      btn.classList.add('gravando');btn.textContent='⏹️';
+      novo.classList.add('gravando');novo.textContent='⏹️';
       status.textContent='🔴 Gravando... toque para parar';
       setTimeout(()=>{if(mediaRec?.state==='recording')mediaRec.stop();},60000);
     }catch(e){status.textContent='Erro ao acessar microfone';}
@@ -1846,6 +1858,12 @@ async function openDetalhe(obra,atribuicoes){
 
   document.getElementById('btn-abrir-edicao').style.display=PERFIL==='gestor'?'flex':'none';
 
+  // reinicia status do mic
+  document.getElementById('mic-status').textContent='Pressione e fale o que foi feito na obra';
+  document.getElementById('btn-mic').classList.remove('gravando');
+  document.getElementById('btn-mic').textContent='🎙️';
+  if(mediaRec&&mediaRec.state==='recording'){mediaRec.stop();mediaRec=null;}
+
   const[{data:etapas},{data:cl},{data:historico},{data:todosProfiles}]=await Promise.all([
     sb.from('acomp_etapas_template').select('*').order('ordem'),
     sb.from('acomp_obra_checklist').select('id,concluido,concluido_em,observacao,acomp_checklist_template(id,item,ordem,etapa_id)').eq('obra_id',obra.id),
@@ -1858,19 +1876,7 @@ async function openDetalhe(obra,atribuicoes){
   const foot=document.getElementById('d-foot');
   body.innerHTML='';side.innerHTML='';foot.innerHTML='';
 
-  // botão IA microfone (mobile)
-  const micBar=document.createElement('div');
-  micBar.style.cssText='display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg3)';
-  micBar.innerHTML=`
-    <button class="btn-mic" id="btn-mic" title="Gravar áudio — IA marca o checklist automaticamente">🎙️</button>
-    <div style="flex:1">
-      <div style="font-size:12px;font-weight:600;margin-bottom:2px">IA por voz</div>
-      <div id="mic-status" style="font-size:11px;color:var(--text3)">Pressione e fale o que foi feito na obra</div>
-    </div>
-  `;
-  document.getElementById('d-body-wrap').insertBefore(micBar, document.getElementById('d-body'));
-
-  // inicializa gravação
+  // inicializa microfone com dados da obra atual
   iniciarMicrofone(obra, etapas, cl);
   const sideTop=document.createElement('div');sideTop.className='side-top';
   const sideHistWrap=document.createElement('div');sideHistWrap.className='side-hist-wrap';
